@@ -21,6 +21,7 @@ interface Props {
 export function Sidebar({ activePanel, onPanelChange, themes, onSave, onApply, onDelete }: Props) {
   const [saving, setSaving] = useState(false)
   const [themeName, setThemeName] = useState('')
+  const [activeThemeName, setActiveThemeName] = useState<string | null>(null)
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
@@ -57,7 +58,7 @@ export function Sidebar({ activePanel, onPanelChange, themes, onSave, onApply, o
         )}
 
         {themes.map(theme => (
-          <div key={theme.name} className="theme-item" onClick={() => onApply(theme.name)}>
+          <button key={theme.name} type="button" className={`theme-item ${activeThemeName === theme.name ? 'active-theme' : ''}`} onClick={() => { onApply(theme.name); setActiveThemeName(theme.name) }}>
             <span>{theme.name}</span>
             <button
               className="theme-delete"
@@ -66,7 +67,7 @@ export function Sidebar({ activePanel, onPanelChange, themes, onSave, onApply, o
             >
               ×
             </button>
-          </div>
+          </button>
         ))}
 
         {saving ? (

@@ -13,11 +13,10 @@ export function TerminalPreview({ settings }: Props) {
   const bgImage = d.backgroundImage
 
   const style: React.CSSProperties = {
-    backgroundColor: scheme?.background ?? '#0d1117',
+    backgroundColor: hexToRgba(scheme?.background ?? '#0d1117', opacity),
     color: scheme?.foreground ?? '#e6edf3',
     fontFamily: `'${font.face}', 'Cascadia Code', Consolas, monospace`,
     fontSize: `${Math.min(font.size, 14)}px`,
-    opacity,
     ...(bgImage ? {
       backgroundImage: `url('${bgImage.replace(/\\/g, '/')}')`,
       backgroundSize: d.backgroundImageStretchMode === 'fill' ? '100% 100%'
@@ -49,4 +48,11 @@ export function TerminalPreview({ settings }: Props) {
       </div>
     </div>
   )
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
