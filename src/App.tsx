@@ -11,8 +11,8 @@ import { useThemes } from './hooks/useThemes'
 export type ActivePanel = 'opacity' | 'colors' | 'font' | 'background'
 
 export default function App() {
-  const { settings, error, patch } = useSettings()
-  const { themes, save, apply, remove } = useThemes()
+  const { settings, error, patch, refetch } = useSettings()
+  const { themes, save, apply, remove } = useThemes(refetch)
   const [activePanel, setActivePanel] = useState<ActivePanel>('opacity')
 
   if (error) return <div className="error">{error}</div>

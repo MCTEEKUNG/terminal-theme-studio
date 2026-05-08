@@ -77,12 +77,21 @@ async function handleRequest(req: Request): Promise<Response> {
   }
 
   if (method === 'PATCH' && pathname === '/api/settings') {
-    const body = await req.json() as { defaults?: Partial<ProfileDefaults>; scheme?: ColorScheme }
-    let settings = readSettings()
-    if (body.defaults) settings = mergeDefaults(settings, body.defaults)
-    if (body.scheme) settings = upsertScheme(settings, body.scheme)
-    writeSettings(settings)
-    return json({ ok: true })
+    let body: { defaults?: Partial<ProfileDefaults>; scheme?: ColorScheme }
+    try {
+      body = await req.json()
+    } catch {
+      return json({ error: 'invalid JSON body' }, 400)
+    }
+    try {
+      let settings = readSettings()
+      if (body.defaults) settings = mergeDefaults(settings, body.defaults)
+      if (body.scheme) settings = upsertScheme(settings, body.scheme)
+      writeSettings(settings)
+      return json({ ok: true })
+    } catch (err) {
+      return json({ error: 'write failed' }, 500)
+    }
   }
 
   if (method === 'GET' && pathname === '/api/themes') {
@@ -90,19 +99,28 @@ async function handleRequest(req: Request): Promise<Response> {
   }
 
   if (method === 'POST' && pathname === '/api/themes') {
-    const body = await req.json() as { name: string }
-    if (!body.name?.trim()) return json({ error: 'name required' }, 400)
-    const settings = readSettings()
-    const schemeName = settings.profiles.defaults.colorScheme ?? ''
-    const scheme = settings.schemes.find(s => s.name === schemeName)
-    const theme: SavedTheme = {
-      name: body.name.trim(),
-      savedAt: new Date().toISOString(),
-      settings: { defaults: settings.profiles.defaults, scheme }
+    let body: { name: string }
+    try {
+      body = await req.json()
+    } catch {
+      return json({ error: 'invalid JSON body' }, 400)
     }
-    const themes = readThemes().filter(t => t.name !== theme.name)
-    writeThemes([...themes, theme])
-    return json(theme, 201)
+    if (!body.name?.trim()) return json({ error: 'name required' }, 400)
+    try {
+      const settings = readSettings()
+      const schemeName = settings.profiles.defaults.colorScheme ?? ''
+      const scheme = settings.schemes.find(s => s.name === schemeName)
+      const theme: SavedTheme = {
+        name: body.name.trim(),
+        savedAt: new Date().toISOString(),
+        settings: { defaults: settings.profiles.defaults, scheme }
+      }
+      const themes = readThemes().filter(t => t.name !== theme.name)
+      writeThemes([...themes, theme])
+      return json(theme, 201)
+    } catch (err) {
+      return json({ error: 'write failed' }, 500)
+    }
   }
 
   const deleteMatch = pathname.match(/^\/api\/themes\/([^/]+)$/)
@@ -117,11 +135,15 @@ async function handleRequest(req: Request): Promise<Response> {
     const name = decodeURIComponent(applyMatch[1])
     const theme = readThemes().find(t => t.name === name)
     if (!theme) return json({ error: 'theme not found' }, 404)
-    let settings = readSettings()
-    settings = mergeDefaults(settings, theme.settings.defaults)
-    if (theme.settings.scheme) settings = upsertScheme(settings, theme.settings.scheme)
-    writeSettings(settings)
-    return json({ ok: true })
+    try {
+      let settings = readSettings()
+      settings = mergeDefaults(settings, theme.settings.defaults)
+      if (theme.settings.scheme) settings = upsertScheme(settings, theme.settings.scheme)
+      writeSettings(settings)
+      return json({ ok: true })
+    } catch (err) {
+      return json({ error: 'write failed' }, 500)
+    }
   }
 
   return new Response('Not Found', { status: 404, headers: addCors() })

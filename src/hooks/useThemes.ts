@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { SavedTheme } from '../types'
 
-export function useThemes() {
+export function useThemes(onSettingsChange?: () => void) {
   const [themes, setThemes] = useState<SavedTheme[]>([])
 
   const reload = useCallback(() => {
@@ -21,7 +21,8 @@ export function useThemes() {
 
   const apply = useCallback(async (name: string) => {
     await fetch(`/api/themes/${encodeURIComponent(name)}/apply`, { method: 'POST' })
-  }, [])
+    onSettingsChange?.()
+  }, [onSettingsChange])
 
   const remove = useCallback(async (name: string) => {
     await fetch(`/api/themes/${encodeURIComponent(name)}`, { method: 'DELETE' })

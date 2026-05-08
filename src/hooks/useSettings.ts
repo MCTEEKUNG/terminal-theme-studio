@@ -17,10 +17,12 @@ export function useSettings() {
   }, [])
 
   useEffect(() => {
+    let cancelled = false
     let ws: WebSocket
     let retryDelay = 1000
 
     function connect() {
+      if (cancelled) return
       ws = new WebSocket(WS_URL)
       ws.onopen = () => { retryDelay = 1000 }
       ws.onmessage = (e) => {
@@ -31,12 +33,16 @@ export function useSettings() {
         skipWsRef.current = false
       }
       ws.onclose = () => {
+        if (cancelled) return
         retryDelay = Math.min(retryDelay * 2, 5000)
         setTimeout(connect, retryDelay)
       }
     }
     connect()
-    return () => ws?.close()
+    return () => {
+      cancelled = true
+      ws?.close()
+    }
   }, [])
 
   const patch = useCallback((body: { defaults?: Partial<ProfileDefaults>; scheme?: ColorScheme }) => {
@@ -44,7 +50,14 @@ export function useSettings() {
       if (!prev) return prev
       const next = { ...prev }
       if (body.defaults) {
-        next.profiles = { ...prev.profiles, defaults: { ...prev.profiles.defaults, ...body.defaults } }
+        const merged: ProfileDefaults = { ...prev.profiles.defaults, ...body.defaults }
+        if (body.defaults.unfocusedAppearance && prev.profiles.defaults.unfocusedAppearance) {
+          merged.unfocusedAppearance = { ...prev.profiles.defaults.unfocusedAppearance, ...body.defaults.unfocusedAppearance }
+        }
+        if (body.defaults.font && prev.profiles.defaults.font) {
+          merged.font = { ...prev.profiles.defaults.font, ...body.defaults.font }
+        }
+        next.profiles = { ...prev.profiles, defaults: merged }
       }
       if (body.scheme) {
         const idx = prev.schemes.findIndex(s => s.name === body.scheme!.name)
@@ -56,8 +69,8 @@ export function useSettings() {
     })
 
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    skipWsRef.current = true
     debounceRef.current = setTimeout(() => {
+      skipWsRef.current = true
       fetch('/api/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -66,5 +79,12 @@ export function useSettings() {
     }, 150)
   }, [])
 
-  return { settings, error, patch }
+  const refetch = useCallback(() => {
+    fetch('/api/settings')
+      .then(r => r.json())
+      .then(setSettings)
+      .catch(() => {})
+  }, [])
+
+  return { settings, error, patch, refetch }
 }

@@ -8,12 +8,19 @@ const BUILT_IN_SCHEMES = new Set([
 ])
 
 export function mergeDefaults(settings: WTSettings, patch: Partial<ProfileDefaults>): WTSettings {
+  const merged: ProfileDefaults = { ...settings.profiles.defaults, ...patch }
+  if (patch.unfocusedAppearance && settings.profiles.defaults.unfocusedAppearance) {
+    merged.unfocusedAppearance = {
+      ...settings.profiles.defaults.unfocusedAppearance,
+      ...patch.unfocusedAppearance
+    }
+  }
+  if (patch.font && settings.profiles.defaults.font) {
+    merged.font = { ...settings.profiles.defaults.font, ...patch.font }
+  }
   return {
     ...settings,
-    profiles: {
-      ...settings.profiles,
-      defaults: { ...settings.profiles.defaults, ...patch }
-    }
+    profiles: { ...settings.profiles, defaults: merged }
   }
 }
 
