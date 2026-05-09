@@ -4,7 +4,7 @@ import type { SavedTheme } from '../types'
 
 const NAV_ITEMS: { id: ActivePanel; label: string; icon: string }[] = [
   { id: 'opacity', label: 'Opacity', icon: '◈' },
-  { id: 'colors', label: 'Colors', icon: '🎨' },
+  { id: 'themes', label: 'Themes', icon: '🎨' },
   { id: 'font', label: 'Font', icon: 'Aa' },
   { id: 'background', label: 'Background', icon: '🖼' }
 ]

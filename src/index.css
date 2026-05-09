@@ -31,7 +31,7 @@ body {
   height: 100vh;
 }
 
-/* Sidebar */
+/* ─── Sidebar ─────────────────────────────────────────────── */
 .sidebar {
   width: 180px;
   flex-shrink: 0;
@@ -149,31 +149,47 @@ body {
 
 .btn-primary { background: #238636; color: #fff; }
 .btn-primary:hover { background: #2ea043; }
-.btn-save { background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-primary); width: 100%; margin-top: 6px; padding: 6px; }
+.btn-save {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  width: 100%;
+  margin-top: 6px;
+  padding: 6px;
+}
 .btn-save:hover { border-color: var(--accent); color: var(--accent); }
 
-/* Main area */
+/* ─── Main area — horizontal split ───────────────────────── */
 .main {
   flex: 1;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   overflow: hidden;
 }
 
 .panel {
-  flex: 1;
+  width: 290px;
+  flex-shrink: 0;
   overflow-y: auto;
   padding: 20px;
+  border-right: 1px solid var(--border);
 }
 
 .panel-title {
   font-size: 15px;
   font-weight: 600;
-  margin-bottom: 18px;
+  margin-bottom: 6px;
   color: var(--text-primary);
 }
 
-/* Controls */
+.panel-subtitle {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 18px;
+  line-height: 1.5;
+}
+
+/* ─── Controls ────────────────────────────────────────────── */
 .control-group { margin-bottom: 18px; }
 
 .control-label {
@@ -252,41 +268,7 @@ body {
 
 .toggle input:checked + .toggle-track::after { left: 18px; background: #fff; }
 
-/* Color pickers */
-.color-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.color-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.color-swatch {
-  width: 28px;
-  height: 28px;
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  cursor: pointer;
-  padding: 0;
-  overflow: hidden;
-}
-
-.color-swatch input[type="color"] {
-  width: 140%;
-  height: 140%;
-  margin: -20%;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-}
-
-.color-name { font-size: 11px; color: var(--text-secondary); }
-
-/* Font controls */
+/* ─── Font controls ───────────────────────────────────────── */
 .text-input {
   width: 100%;
   background: var(--bg-elevated);
@@ -314,15 +296,67 @@ body {
 
 .select-input:focus { border-color: var(--accent); }
 
-/* Terminal preview */
+/* ─── Preset Themes grid ──────────────────────────────────── */
+.themes-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.theme-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.theme-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.theme-card-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.theme-swatch {
+  display: flex;
+  height: 28px;
+}
+
+.theme-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+}
+
+.theme-card-name {
+  font-size: 11px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.theme-card-check {
+  font-size: 10px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ─── Terminal Preview ────────────────────────────────────── */
 .terminal-preview {
-  border-top: 1px solid var(--border);
-  height: 170px;
-  flex-shrink: 0;
-  padding: 10px 14px;
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  padding: 14px;
+  gap: 8px;
+  overflow: hidden;
+  min-width: 0;
 }
 
 .preview-label {
@@ -330,23 +364,184 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-secondary);
+  flex-shrink: 0;
 }
 
-.terminal-window {
+/* Windows Terminal window chrome */
+.wt-window {
   flex: 1;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  padding: 10px 12px;
-  font-size: 12px;
-  line-height: 1.7;
+  border-radius: 8px;
   overflow: hidden;
-  background-size: cover;
-  background-position: center;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  min-height: 0;
 }
 
-.terminal-line { white-space: pre; }
+/* Desktop wallpaper visible through opacity */
+.desktop-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 30% 40%, #0d5a9e 0%, transparent 60%),
+    radial-gradient(ellipse 60% 80% at 70% 70%, #0a3d6b 0%, transparent 55%),
+    linear-gradient(160deg, #021426 0%, #031d38 40%, #061528 100%);
+  z-index: 0;
+}
 
-/* Loading / error */
+/* Title bar */
+.wt-titlebar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  height: 36px;
+  flex-shrink: 0;
+  padding-left: 4px;
+}
+
+.wt-tabstrip {
+  display: flex;
+  align-items: flex-end;
+  gap: 0;
+  flex: 1;
+  overflow: hidden;
+  padding-top: 5px;
+}
+
+.wt-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 16px;
+  border-radius: 6px 6px 0 0;
+  font-size: 11px;
+  white-space: nowrap;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+.wt-tab-icon {
+  font-size: 10px;
+  opacity: 0.6;
+  font-family: 'Cascadia Code', Consolas, monospace;
+}
+
+.wt-newtab {
+  background: none;
+  border: none;
+  padding: 0 10px;
+  cursor: default;
+  font-size: 16px;
+  line-height: 1;
+  align-self: center;
+  opacity: 0.4;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+.wt-wincontrols {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+}
+
+.wt-ctrl {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 36px;
+  font-size: 11px;
+  cursor: default;
+  color: rgba(255, 255, 255, 0.55);
+  user-select: none;
+  transition: background 0.1s;
+}
+
+.wt-ctrl:hover { background: rgba(255, 255, 255, 0.1); }
+.wt-close:hover { background: #c42b1c; color: #fff; }
+
+/* Terminal body */
+.wt-body {
+  flex: 1;
+  padding: 12px 16px;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.65;
+  position: relative;
+  z-index: 1;
+}
+
+.tl {
+  white-space: pre;
+  display: block;
+}
+
+.tl-row {
+  display: flex !important;
+  align-items: center;
+}
+
+/* Convert-to-GIF status badges */
+.convert-badge {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+.convert-badge.converting {
+  color: var(--accent);
+  background: rgba(88, 166, 255, 0.12);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.convert-badge.done {
+  color: var(--success);
+  background: rgba(63, 185, 80, 0.12);
+}
+.convert-badge.error {
+  color: var(--danger);
+  background: rgba(248, 81, 73, 0.12);
+}
+.convert-error {
+  font-size: 10px;
+  color: var(--danger);
+  margin-top: 5px;
+  line-height: 1.5;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+/* Background media layer (image div or video element) */
+.wt-bg-media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* When used as a <div> (image), background-* props are applied inline */
+/* When used as a <video>, object-fit/object-position are applied inline */
+video.wt-bg-media { display: block; }
+
+/* Terminal text sits above the media layer */
+.wt-content {
+  position: relative;
+  z-index: 1;
+}
+
+/* Blinking cursor */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ─── Loading / error ─────────────────────────────────────── */
 .loading, .error {
   display: flex;
   align-items: center;
@@ -356,29 +551,3 @@ body {
 }
 
 .error { color: var(--danger); }
-
-/* ANSI color grid */
-.ansi-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-}
-
-.scheme-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border);
-}
-
-.scheme-name { font-size: 12px; color: var(--text-primary); font-weight: 500; }
-.scheme-badge {
-  font-size: 10px;
-  padding: 1px 6px;
-  border-radius: 10px;
-  background: var(--bg-elevated);
-  color: var(--text-secondary);
-  border: 1px solid var(--border);
-}

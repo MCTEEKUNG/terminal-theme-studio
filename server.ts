@@ -146,6 +146,65 @@ async function handleRequest(req: Request): Promise<Response> {
     }
   }
 
+  if (method === 'POST' && pathname === '/api/convert-gif') {
+    let body: { path: string }
+    try { body = await req.json() } catch { return json({ error: 'invalid body' }, 400) }
+
+    const videoPath = body.path?.trim()
+    if (!videoPath) return json({ error: 'path required' }, 400)
+    if (!existsSync(videoPath)) return json({ error: 'file not found' }, 404)
+    if (!/\.(mp4|webm|ogg|mov|avi|mkv)$/i.test(videoPath)) {
+      return json({ error: 'not a video file' }, 400)
+    }
+
+    const gifPath = videoPath.replace(/\.[^.]+$/, '.gif')
+
+    try {
+      const proc = Bun.spawn([
+        'ffmpeg', '-y', '-i', videoPath,
+        '-vf', 'fps=12,scale=640:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=256[p];[s1][p]paletteuse=dither=bayer',
+        '-loop', '0',
+        gifPath,
+      ], { stderr: 'pipe' })
+
+      // Drain stderr concurrently — ffmpeg is verbose and will deadlock if the
+      // pipe buffer fills while we're blocking on proc.exited.
+      const stderrPromise = new Response(proc.stderr).text().catch(() => '')
+      const exitCode = await proc.exited
+      if (exitCode !== 0) {
+        const detail = await stderrPromise
+        return json({ error: 'ffmpeg failed', detail }, 500)
+      }
+      return json({ gifPath })
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.includes('ENOENT') || msg.toLowerCase().includes('not found')) {
+        return json({ error: 'ffmpeg_missing' }, 503)
+      }
+      return json({ error: 'conversion failed', detail: msg }, 500)
+    }
+  }
+
+  if (method === 'GET' && pathname === '/api/file') {
+    const filePath = url.searchParams.get('path')
+    if (!filePath) return json({ error: 'path required' }, 400)
+    if (!existsSync(filePath)) return new Response('Not Found', { status: 404, headers: addCors() })
+
+    const ext = path.extname(filePath).toLowerCase()
+    const MIME: Record<string, string> = {
+      '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp',
+      '.mp4': 'video/mp4', '.webm': 'video/webm', '.ogg': 'video/ogg',
+      '.mov': 'video/mp4',
+    }
+    const mime = MIME[ext]
+    if (!mime) return new Response('Unsupported media type', { status: 415, headers: addCors() })
+
+    const h = addCors({ 'Content-Type': mime })
+    h.set('Accept-Ranges', 'bytes')
+    return new Response(Bun.file(filePath), { headers: h })
+  }
+
   return new Response('Not Found', { status: 404, headers: addCors() })
 }
 

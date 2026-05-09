@@ -1,19 +1,19 @@
 import { useState } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { OpacityPanel } from './components/panels/OpacityPanel'
-import { ColorsPanel } from './components/panels/ColorsPanel'
+import { ThemesPanel } from './components/panels/ThemesPanel'
 import { FontPanel } from './components/panels/FontPanel'
 import { BackgroundPanel } from './components/panels/BackgroundPanel'
 import { TerminalPreview } from './components/TerminalPreview'
 import { useSettings } from './hooks/useSettings'
 import { useThemes } from './hooks/useThemes'
 
-export type ActivePanel = 'opacity' | 'colors' | 'font' | 'background'
+export type ActivePanel = 'opacity' | 'themes' | 'font' | 'background'
 
 export default function App() {
   const { settings, error, patch, refetch } = useSettings()
   const { themes, save, apply, remove } = useThemes(refetch)
-  const [activePanel, setActivePanel] = useState<ActivePanel>('opacity')
+  const [activePanel, setActivePanel] = useState<ActivePanel>('themes')
 
   if (error) return <div className="error">{error}</div>
   if (!settings) return <div className="loading">Connecting to server...</div>
@@ -31,7 +31,7 @@ export default function App() {
       <div className="main">
         <div className="panel">
           {activePanel === 'opacity' && <OpacityPanel settings={settings} onPatch={patch} />}
-          {activePanel === 'colors' && <ColorsPanel settings={settings} onPatch={patch} />}
+          {activePanel === 'themes' && <ThemesPanel settings={settings} onPatch={patch} />}
           {activePanel === 'font' && <FontPanel settings={settings} onPatch={patch} />}
           {activePanel === 'background' && <BackgroundPanel settings={settings} onPatch={patch} />}
         </div>
