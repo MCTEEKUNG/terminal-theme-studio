@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync, watch } from 'fs'
+import { readFileSync, writeFileSync, existsSync, watch, unlinkSync, renameSync } from 'fs'
 import path from 'path'
 import type { WTSettings, SavedTheme, ColorScheme, ProfileDefaults } from './src/types'
 import { mergeDefaults, upsertScheme } from './src/lib/settings'
@@ -19,6 +19,17 @@ if (!existsSync(WT_SETTINGS_PATH)) {
 }
 
 const clients = new Set<import('bun').ServerWebSocket<unknown>>()
+
+let activeFfmpeg: { proc: import('bun').Subprocess; tmpPath: string } | null = null
+
+function killActiveFfmpeg(): void {
+  if (!activeFfmpeg) return
+  try { activeFfmpeg.proc.kill() } catch {}
+  try {
+    if (existsSync(activeFfmpeg.tmpPath)) unlinkSync(activeFfmpeg.tmpPath)
+  } catch {}
+  activeFfmpeg = null
+}
 
 function readSettings(): WTSettings {
   return JSON.parse(readFileSync(WT_SETTINGS_PATH, 'utf-8'))
@@ -158,23 +169,53 @@ async function handleRequest(req: Request): Promise<Response> {
     }
 
     const gifPath = videoPath.replace(/\.[^.]+$/, '.gif')
+    const tmpPath = `${gifPath}.tmp`
+
+    // Cancel any in-flight conversion before starting a new one
+    killActiveFfmpeg()
 
     try {
       const proc = Bun.spawn([
         'ffmpeg', '-y', '-i', videoPath,
         '-vf', 'fps=12,scale=640:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=256[p];[s1][p]paletteuse=dither=bayer',
         '-loop', '0',
-        gifPath,
+        tmpPath,
       ], { stderr: 'pipe' })
+
+      activeFfmpeg = { proc, tmpPath }
+
+      // Kill if the client disconnects
+      const onAbort = () => killActiveFfmpeg()
+      req.signal.addEventListener('abort', onAbort)
 
       // Drain stderr concurrently — ffmpeg is verbose and will deadlock if the
       // pipe buffer fills while we're blocking on proc.exited.
       const stderrPromise = new Response(proc.stderr).text().catch(() => '')
       const exitCode = await proc.exited
+
+      req.signal.removeEventListener('abort', onAbort)
+
+      // If we were superseded or aborted, activeFfmpeg has changed or is null
+      const wasCurrent = activeFfmpeg?.proc === proc
+      if (wasCurrent) activeFfmpeg = null
+
       if (exitCode !== 0) {
+        if (existsSync(tmpPath)) { try { unlinkSync(tmpPath) } catch {} }
+        // If we were cancelled, don't return an error response — the client
+        // already moved on, and req.signal.aborted will be true.
+        if (req.signal.aborted) return new Response(null, { status: 499 })
         const detail = await stderrPromise
         return json({ error: 'ffmpeg failed', detail }, 500)
       }
+
+      // Atomic rename to final path
+      try {
+        if (existsSync(gifPath)) unlinkSync(gifPath)
+        renameSync(tmpPath, gifPath)
+      } catch (err) {
+        return json({ error: 'rename failed', detail: String(err) }, 500)
+      }
+
       return json({ gifPath })
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
