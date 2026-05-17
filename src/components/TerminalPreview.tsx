@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import { memo, useMemo, type CSSProperties } from 'react'
 import type { WTSettings } from '../types'
 import { getActiveScheme } from '../lib/settings'
 
@@ -19,53 +19,65 @@ function alignmentToCss(a: string | undefined): string {
   return map[a ?? ''] ?? (a ?? 'center')
 }
 
-export function TerminalPreview({ settings }: Props) {
+function TerminalPreviewInner({ settings }: Props) {
   const d = settings.profiles.defaults
   const scheme = getActiveScheme(settings)
-  const font = d.font ?? { face: 'Cascadia Code', size: 12 }
-  const opacity = (d.opacity ?? 100) / 100
-  const bgImage = d.backgroundImage || null
-  const bgImageOpacity = d.backgroundImageOpacity ?? 1
 
-  const bg = scheme?.background ?? '#0d1117'
-  const fg = scheme?.foreground ?? '#e6edf3'
-  const green = scheme?.green ?? '#3fb950'
-  const brightGreen = scheme?.brightGreen ?? '#56d364'
-  const blue = scheme?.blue ?? '#58a6ff'
-  const yellow = scheme?.yellow ?? '#d29922'
-  const red = scheme?.red ?? '#ff7b72'
-  const cyan = scheme?.cyan ?? '#39c5cf'
-  const brightBlack = scheme?.brightBlack ?? '#6e7681'
-  const cursorColor = scheme?.cursorColor ?? blue
+  const view = useMemo(() => {
+    const font = d.font ?? { face: 'Cascadia Code', size: 12 }
+    const opacity = (d.opacity ?? 100) / 100
+    const bgImage = d.backgroundImage || null
+    const bgImageOpacity = d.backgroundImageOpacity ?? 1
 
-  const titleBg = darken(bg, 0.18)
-  const fontSize = Math.min((font as { face: string; size: number }).size, 12)
-  const fontFamily = `'${font.face}', 'Cascadia Code', Consolas, 'Courier New', monospace`
+    const bg = scheme?.background ?? '#0d1117'
+    const fg = scheme?.foreground ?? '#e6edf3'
+    const green = scheme?.green ?? '#3fb950'
+    const brightGreen = scheme?.brightGreen ?? '#56d364'
+    const blue = scheme?.blue ?? '#58a6ff'
+    const yellow = scheme?.yellow ?? '#d29922'
+    const red = scheme?.red ?? '#ff7b72'
+    const cyan = scheme?.cyan ?? '#39c5cf'
+    const brightBlack = scheme?.brightBlack ?? '#6e7681'
+    const cursorColor = scheme?.cursorColor ?? blue
 
-  const stretchSize =
-    d.backgroundImageStretchMode === 'fill' ? '100% 100%'
-    : d.backgroundImageStretchMode === 'uniform' ? 'contain'
-    : d.backgroundImageStretchMode === 'none' ? 'auto'
-    : 'cover'
+    const titleBg = darken(bg, 0.18)
+    const fontSize = Math.min((font as { face: string; size: number }).size, 12)
+    const fontFamily = `'${font.face}', 'Cascadia Code', Consolas, 'Courier New', monospace`
 
-  const objectFit: CSSProperties['objectFit'] =
-    d.backgroundImageStretchMode === 'fill' ? 'fill'
-    : d.backgroundImageStretchMode === 'uniform' ? 'contain'
-    : d.backgroundImageStretchMode === 'none' ? 'none'
-    : 'cover'
+    const stretchSize =
+      d.backgroundImageStretchMode === 'fill' ? '100% 100%'
+      : d.backgroundImageStretchMode === 'uniform' ? 'contain'
+      : d.backgroundImageStretchMode === 'none' ? 'auto'
+      : 'cover'
 
-  const alignment = alignmentToCss(d.backgroundImageAlignment)
+    const objectFit: CSSProperties['objectFit'] =
+      d.backgroundImageStretchMode === 'fill' ? 'fill'
+      : d.backgroundImageStretchMode === 'uniform' ? 'contain'
+      : d.backgroundImageStretchMode === 'none' ? 'none'
+      : 'cover'
 
-  // Window opacity applied to the whole body; bg media handles bgImageOpacity separately.
-  const bodyStyle: CSSProperties = {
-    backgroundColor: bg,
-    color: fg,
-    fontFamily,
-    fontSize,
-    opacity,
-    position: 'relative',
-    overflow: 'hidden',
-  }
+    const alignment = alignmentToCss(d.backgroundImageAlignment)
+
+    const bodyStyle: CSSProperties = {
+      backgroundColor: bg,
+      color: fg,
+      fontFamily,
+      fontSize,
+      opacity,
+      position: 'relative',
+      overflow: 'hidden',
+    }
+
+    return {
+      bg, fg, green, brightGreen, blue, yellow, red, cyan, brightBlack, cursorColor,
+      titleBg, bgImage, bgImageOpacity, stretchSize, objectFit, alignment, bodyStyle,
+    }
+  }, [settings])
+
+  const {
+    bg, fg, green, brightGreen, blue, yellow, red, cyan, brightBlack, cursorColor,
+    titleBg, bgImage, bgImageOpacity, stretchSize, objectFit, alignment, bodyStyle,
+  } = view
 
   return (
     <div className="terminal-preview">
@@ -76,10 +88,8 @@ export function TerminalPreview({ settings }: Props) {
 
       <div className="screen">
       <div className="wt-window">
-        {/* Desktop wallpaper — visible when opacity < 1 */}
         <div className="desktop-bg" />
 
-        {/* Title bar + tabs */}
         <div className="wt-titlebar" style={{ background: titleBg }}>
           <div className="wt-tabstrip">
             <div className="wt-tab" style={{ background: bg, color: fg }}>
@@ -95,35 +105,20 @@ export function TerminalPreview({ settings }: Props) {
           </div>
         </div>
 
-        {/* Terminal body */}
         <div className="wt-body" style={bodyStyle}>
-
-          {/* Background media layer */}
-          {bgImage && (
-            isVideo(bgImage) ? (
-              <video
-                key={bgImage}
-                className="wt-bg-media"
-                autoPlay loop muted playsInline
-                style={{ objectFit, objectPosition: alignment, opacity: bgImageOpacity }}
-              >
-                <source src={fileUrl(bgImage)} />
-              </video>
-            ) : (
-              <div
-                className="wt-bg-media"
-                style={{
-                  backgroundImage: `url('${fileUrl(bgImage)}')`,
-                  backgroundSize: stretchSize,
-                  backgroundPosition: alignment,
-                  backgroundRepeat: 'no-repeat',
-                  opacity: bgImageOpacity,
-                }}
-              />
-            )
+          {bgImage && !isVideo(bgImage) && (
+            <div
+              className="wt-bg-media"
+              style={{
+                backgroundImage: `url('${fileUrl(bgImage)}')`,
+                backgroundSize: stretchSize,
+                backgroundPosition: alignment,
+                backgroundRepeat: 'no-repeat',
+                opacity: bgImageOpacity,
+              }}
+            />
           )}
 
-          {/* Terminal text content */}
           <div className="wt-content">
             <div className="tl" style={{ color: brightBlack }}>Windows PowerShell</div>
             <div className="tl" style={{ color: brightBlack, marginBottom: 6 }}>
@@ -177,6 +172,8 @@ export function TerminalPreview({ settings }: Props) {
     </div>
   )
 }
+
+export const TerminalPreview = memo(TerminalPreviewInner)
 
 function Prompt({ blue, green, fg }: { blue: string; green: string; fg: string }) {
   return (
