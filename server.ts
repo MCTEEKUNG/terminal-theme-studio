@@ -169,7 +169,7 @@ async function handleRequest(req: Request): Promise<Response> {
     }
 
     const gifPath = videoPath.replace(/\.[^.]+$/, '.gif')
-    const tmpPath = `${gifPath}.tmp`
+    const tmpPath = `${gifPath}.${crypto.randomUUID()}.tmp`
 
     // Cancel any in-flight conversion before starting a new one
     killActiveFfmpeg()
@@ -184,26 +184,25 @@ async function handleRequest(req: Request): Promise<Response> {
 
       activeFfmpeg = { proc, tmpPath }
 
-      // Kill if the client disconnects
       const onAbort = () => killActiveFfmpeg()
       req.signal.addEventListener('abort', onAbort)
 
-      // Drain stderr concurrently — ffmpeg is verbose and will deadlock if the
-      // pipe buffer fills while we're blocking on proc.exited.
-      const stderrPromise = new Response(proc.stderr).text().catch(() => '')
-      const exitCode = await proc.exited
-
-      req.signal.removeEventListener('abort', onAbort)
-
-      // If we were superseded or aborted, activeFfmpeg has changed or is null
-      const wasCurrent = activeFfmpeg?.proc === proc
-      if (wasCurrent) activeFfmpeg = null
+      let exitCode: number
+      let stderrPromise: Promise<string>
+      try {
+        // Drain stderr concurrently — ffmpeg is verbose and will deadlock if the
+        // pipe buffer fills while we're blocking on proc.exited.
+        stderrPromise = new Response(proc.stderr).text().catch(() => '')
+        exitCode = await proc.exited
+      } finally {
+        req.signal.removeEventListener('abort', onAbort)
+        // If activeFfmpeg still points at us, clear it (we're done)
+        if (activeFfmpeg?.proc === proc) activeFfmpeg = null
+      }
 
       if (exitCode !== 0) {
         if (existsSync(tmpPath)) { try { unlinkSync(tmpPath) } catch {} }
-        // If we were cancelled, don't return an error response — the client
-        // already moved on, and req.signal.aborted will be true.
-        if (req.signal.aborted) return new Response(null, { status: 499 })
+        if (req.signal.aborted) return new Response(null, { status: 499, headers: addCors() })
         const detail = await stderrPromise
         return json({ error: 'ffmpeg failed', detail }, 500)
       }
@@ -213,6 +212,7 @@ async function handleRequest(req: Request): Promise<Response> {
         if (existsSync(gifPath)) unlinkSync(gifPath)
         renameSync(tmpPath, gifPath)
       } catch (err) {
+        if (existsSync(tmpPath)) { try { unlinkSync(tmpPath) } catch {} }
         return json({ error: 'rename failed', detail: String(err) }, 500)
       }
 
