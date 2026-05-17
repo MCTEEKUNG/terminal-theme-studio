@@ -38,8 +38,8 @@ function readSettings(): WTSettings {
 }
 
 function writeSettings(settings: WTSettings): void {
-  cachedSettings = settings
   writeFileSync(WT_SETTINGS_PATH, JSON.stringify(settings, null, 4), 'utf-8')
+  cachedSettings = settings
 }
 
 function reloadSettingsFromDisk(): void {
