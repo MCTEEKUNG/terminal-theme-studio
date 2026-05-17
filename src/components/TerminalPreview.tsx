@@ -50,12 +50,6 @@ function TerminalPreviewInner({ settings }: Props) {
       : d.backgroundImageStretchMode === 'none' ? 'auto'
       : 'cover'
 
-    const objectFit: CSSProperties['objectFit'] =
-      d.backgroundImageStretchMode === 'fill' ? 'fill'
-      : d.backgroundImageStretchMode === 'uniform' ? 'contain'
-      : d.backgroundImageStretchMode === 'none' ? 'none'
-      : 'cover'
-
     const alignment = alignmentToCss(d.backgroundImageAlignment)
 
     const bodyStyle: CSSProperties = {
@@ -70,13 +64,13 @@ function TerminalPreviewInner({ settings }: Props) {
 
     return {
       bg, fg, green, brightGreen, blue, yellow, red, cyan, brightBlack, cursorColor,
-      titleBg, bgImage, bgImageOpacity, stretchSize, objectFit, alignment, bodyStyle,
+      titleBg, bgImage, bgImageOpacity, stretchSize, alignment, bodyStyle,
     }
   }, [settings])
 
   const {
     bg, fg, green, brightGreen, blue, yellow, red, cyan, brightBlack, cursorColor,
-    titleBg, bgImage, bgImageOpacity, stretchSize, objectFit, alignment, bodyStyle,
+    titleBg, bgImage, bgImageOpacity, stretchSize, alignment, bodyStyle,
   } = view
 
   return (
@@ -194,10 +188,3 @@ function darken(hex: string, factor: number): string {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
 }
 
-function hexToRgba(hex: string, alpha: number): string {
-  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return hex
-  const r = parseInt(hex.slice(1, 3), 16)
-  const g = parseInt(hex.slice(3, 5), 16)
-  const b = parseInt(hex.slice(5, 7), 16)
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`
-}
