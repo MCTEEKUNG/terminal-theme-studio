@@ -31,12 +31,21 @@ function killActiveFfmpeg(): void {
   activeFfmpeg = null
 }
 
+let cachedSettings: WTSettings = JSON.parse(readFileSync(WT_SETTINGS_PATH, 'utf-8'))
+
 function readSettings(): WTSettings {
-  return JSON.parse(readFileSync(WT_SETTINGS_PATH, 'utf-8'))
+  return cachedSettings
 }
 
 function writeSettings(settings: WTSettings): void {
+  cachedSettings = settings
   writeFileSync(WT_SETTINGS_PATH, JSON.stringify(settings, null, 4), 'utf-8')
+}
+
+function reloadSettingsFromDisk(): void {
+  try {
+    cachedSettings = JSON.parse(readFileSync(WT_SETTINGS_PATH, 'utf-8'))
+  } catch {}
 }
 
 function readThemes(): SavedTheme[] {
@@ -52,9 +61,9 @@ let watchDebounce: ReturnType<typeof setTimeout> | null = null
 watch(WT_SETTINGS_PATH, () => {
   if (watchDebounce) clearTimeout(watchDebounce)
   watchDebounce = setTimeout(() => {
+    reloadSettingsFromDisk()
     try {
-      const settings = readSettings()
-      const msg = JSON.stringify({ type: 'settings-update', settings })
+      const msg = JSON.stringify({ type: 'settings-update', settings: cachedSettings })
       clients.forEach(ws => ws.send(msg))
     } catch {}
   }, 200)
