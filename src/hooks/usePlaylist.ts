@@ -97,10 +97,15 @@ export function usePlaylist() {
       body: JSON.stringify({ path: idleVideo.sourcePath }),
     })
       .then(r => r.json())
-      .then((data: { gifPath?: string; error?: string }) => {
+      .then((data: { gifPath?: string; durationSec?: number; error?: string }) => {
         convertingIdRef.current = null
         const patch = data.gifPath
-          ? { status: 'ready' as const, gifPath: data.gifPath, error: undefined }
+          ? {
+              status: 'ready' as const,
+              gifPath: data.gifPath,
+              error: undefined,
+              ...(typeof data.durationSec === 'number' ? { durationSec: data.durationSec } : {}),
+            }
           : {
               status: 'error' as const,
               error: data.error === 'ffmpeg_missing'

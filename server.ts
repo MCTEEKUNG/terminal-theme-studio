@@ -296,7 +296,16 @@ async function handleRequest(req: Request): Promise<Response> {
         return json({ error: 'rename failed', detail: String(err) }, 500)
       }
 
-      return json({ gifPath })
+      // Parse source video duration from ffmpeg stderr for accurate playlist timing
+      const stderrText = await stderrPromise
+      const durMatch = stderrText.match(/Duration:\s+(\d+):(\d+):(\d+(?:\.\d+)?)/)
+      let durationSec: number | undefined
+      if (durMatch) {
+        const secs = parseInt(durMatch[1]) * 3600 + parseInt(durMatch[2]) * 60 + parseFloat(durMatch[3])
+        if (secs > 0) durationSec = Math.round(secs * 10) / 10
+      }
+
+      return json({ gifPath, ...(durationSec !== undefined ? { durationSec } : {}) })
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       if (msg.includes('ENOENT') || msg.toLowerCase().includes('not found')) {
