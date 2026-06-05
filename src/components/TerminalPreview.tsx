@@ -69,8 +69,12 @@ export function TerminalPreview({ settings }: Props) {
 
   return (
     <div className="terminal-preview">
-      <div className="preview-label">Live Preview</div>
+      <div className="preview-label">
+        <span className="preview-live-dot" />
+        Live Preview
+      </div>
 
+      <div className="screen">
       <div className="wt-window">
         {/* Desktop wallpaper — visible when opacity < 1 */}
         <div className="desktop-bg" />
@@ -168,6 +172,7 @@ export function TerminalPreview({ settings }: Props) {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   )

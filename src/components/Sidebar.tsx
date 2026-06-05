@@ -2,11 +2,11 @@ import { useState } from 'react'
 import type { ActivePanel } from '../App'
 import type { SavedTheme } from '../types'
 
-const NAV_ITEMS: { id: ActivePanel; label: string; icon: string }[] = [
-  { id: 'opacity', label: 'Opacity', icon: '◈' },
-  { id: 'themes', label: 'Themes', icon: '🎨' },
-  { id: 'font', label: 'Font', icon: 'Aa' },
-  { id: 'background', label: 'Background', icon: '🖼' }
+const NAV_ITEMS: { id: ActivePanel; label: string; glyph: string }[] = [
+  { id: 'opacity', label: 'Opacity', glyph: '◑' },
+  { id: 'themes', label: 'Themes', glyph: '◆' },
+  { id: 'font', label: 'Font', glyph: 'A' },
+  { id: 'background', label: 'Background', glyph: '▤' }
 ]
 
 interface Props {
@@ -33,7 +33,15 @@ export function Sidebar({ activePanel, onPanelChange, themes, onSave, onApply, o
 
   return (
     <div className="sidebar">
-      <div className="sidebar-header">⚡ Theme Studio</div>
+      <div className="sidebar-header">
+        <div className="brand">
+          <div className="brand-mark">❯_</div>
+          <div>
+            <div className="brand-text">Theme Studio</div>
+            <div className="brand-sub">Terminal Tuner</div>
+          </div>
+        </div>
+      </div>
 
       <nav className="sidebar-nav">
         {NAV_ITEMS.map(item => (
@@ -42,7 +50,7 @@ export function Sidebar({ activePanel, onPanelChange, themes, onSave, onApply, o
             className={`nav-item ${activePanel === item.id ? 'active' : ''}`}
             onClick={() => onPanelChange(item.id)}
           >
-            <span>{item.icon}</span>
+            <span className="nav-glyph">{item.glyph}</span>
             <span>{item.label}</span>
           </button>
         ))}

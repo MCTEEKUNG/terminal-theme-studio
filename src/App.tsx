@@ -16,7 +16,12 @@ export default function App() {
   const [activePanel, setActivePanel] = useState<ActivePanel>('themes')
 
   if (error) return <div className="error">{error}</div>
-  if (!settings) return <div className="loading">Connecting to server...</div>
+  if (!settings) return (
+    <div className="loading">
+      <span className="boot-brand">Theme Studio</span>
+      <span>Connecting to terminal…</span>
+    </div>
+  )
 
   return (
     <div className="app">
