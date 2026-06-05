@@ -358,7 +358,17 @@ async function handleRequest(req: Request): Promise<Response> {
       status: isImage ? 'ready' : 'idle',
       durationSec: pl.defaultDurationSec,
     }
-    const updated: PlaylistConfig = { ...pl, items: [...pl.items, newItem] }
+    // Point currentIndex at the new item when not playing
+    const newIndex = pl.items.length
+    const updated: PlaylistConfig = {
+      ...pl,
+      items: [...pl.items, newItem],
+      currentIndex: pl.isPlaying ? pl.currentIndex : newIndex,
+    }
+    // Auto-preview: apply image background immediately when not playing
+    if (!pl.isPlaying && isImage && newItem.gifPath) {
+      applyItemBackground(newItem.gifPath)
+    }
     writePlaylist(updated)
     broadcastPlaylist(updated)
     return json({ playlist: updated }, 201)
@@ -452,9 +462,10 @@ async function handleRequest(req: Request): Promise<Response> {
     const updated: PlaylistConfig = { ...pl, items }
     writePlaylist(updated)
     broadcastPlaylist(updated)
-    if (updatedItem.status === 'ready' && updatedItem.gifPath && pl.isPlaying && pl.currentIndex === idx) {
+    // Auto-preview: apply background whenever current item becomes ready
+    if (updatedItem.status === 'ready' && updatedItem.gifPath && pl.currentIndex === idx) {
       applyItemBackground(updatedItem.gifPath)
-      scheduleAdvance(updated)
+      if (pl.isPlaying) scheduleAdvance(updated)
     }
     return json({ playlist: updated })
   }

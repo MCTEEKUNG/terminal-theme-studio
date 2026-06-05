@@ -189,7 +189,7 @@ export function BackgroundPanel({ settings, onPatch, playlist }: Props) {
                   className={`playlist-item${idx === config.currentIndex && config.isPlaying ? ' current' : ''}`}
                 >
                   <span
-                    className={`playlist-status-dot ${item.status}`}
+                    className={`playlist-status-dot ps-${item.status}`}
                     title={
                       item.status === 'ready' ? 'Ready' :
                       item.status === 'converting' ? 'Converting…' :

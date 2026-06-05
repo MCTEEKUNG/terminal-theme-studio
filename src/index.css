@@ -1119,13 +1119,13 @@ video.wt-bg-media { display: block; }
   flex-shrink: 0;
 }
 
-.playlist-status-dot.idle     { background: var(--text-dim); }
-.playlist-status-dot.converting {
+.playlist-status-dot.ps-idle     { background: var(--text-dim); }
+.playlist-status-dot.ps-converting {
   background: var(--amber);
   animation: pulse 1.2s ease-in-out infinite;
 }
-.playlist-status-dot.ready  { background: var(--success); }
-.playlist-status-dot.error  { background: var(--danger); }
+.playlist-status-dot.ps-ready  { background: var(--success); }
+.playlist-status-dot.ps-error  { background: var(--danger); }
 
 /* Item name */
 .playlist-item-name {
