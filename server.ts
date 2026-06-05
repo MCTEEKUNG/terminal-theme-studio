@@ -258,6 +258,7 @@ async function handleRequest(req: Request): Promise<Response> {
         'ffmpeg', '-y', '-i', videoPath,
         '-vf', 'fps=12,scale=640:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=256[p];[s1][p]paletteuse=dither=bayer',
         '-loop', '0',
+        '-f', 'gif',
         tmpPath,
       ], { stderr: 'pipe' })
 
