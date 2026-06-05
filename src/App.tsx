@@ -7,12 +7,14 @@ import { BackgroundPanel } from './components/panels/BackgroundPanel'
 import { TerminalPreview } from './components/TerminalPreview'
 import { useSettings } from './hooks/useSettings'
 import { useThemes } from './hooks/useThemes'
+import { usePlaylist } from './hooks/usePlaylist'
 
 export type ActivePanel = 'opacity' | 'themes' | 'font' | 'background'
 
 export default function App() {
   const { settings, error, patch, refetch } = useSettings()
   const { themes, save, apply, remove } = useThemes(refetch)
+  const playlist = usePlaylist()
   const [activePanel, setActivePanel] = useState<ActivePanel>('themes')
 
   if (error) return <div className="error">{error}</div>
@@ -38,7 +40,7 @@ export default function App() {
           {activePanel === 'opacity' && <OpacityPanel settings={settings} onPatch={patch} />}
           {activePanel === 'themes' && <ThemesPanel settings={settings} onPatch={patch} />}
           {activePanel === 'font' && <FontPanel settings={settings} onPatch={patch} />}
-          {activePanel === 'background' && <BackgroundPanel settings={settings} onPatch={patch} />}
+          {activePanel === 'background' && <BackgroundPanel settings={settings} onPatch={patch} playlist={playlist} />}
         </div>
         <TerminalPreview settings={settings} />
       </div>

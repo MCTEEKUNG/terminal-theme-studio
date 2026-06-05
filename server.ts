@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, existsSync, watch, unlinkSync, renameSync } from 'fs'
 import path from 'path'
-import type { WTSettings, SavedTheme, ColorScheme, ProfileDefaults } from './src/types'
+import type { WTSettings, SavedTheme, ColorScheme, ProfileDefaults, PlaylistItem, PlaylistConfig } from './src/types'
 import { mergeDefaults, upsertScheme } from './src/lib/settings'
 
 const WT_SETTINGS_PATH = path.join(
@@ -12,6 +12,7 @@ const WT_SETTINGS_PATH = path.join(
 )
 
 const THEMES_PATH = path.join(import.meta.dir, 'themes.json')
+const PLAYLIST_PATH = path.join(import.meta.dir, 'playlist.json')
 
 if (!existsSync(WT_SETTINGS_PATH)) {
   console.error(`Windows Terminal settings.json not found at:\n  ${WT_SETTINGS_PATH}`)
@@ -56,6 +57,75 @@ function readThemes(): SavedTheme[] {
 function writeThemes(themes: SavedTheme[]): void {
   writeFileSync(THEMES_PATH, JSON.stringify(themes, null, 2), 'utf-8')
 }
+
+// ── Playlist engine ──────────────────────────────────────────
+
+const DEFAULT_PLAYLIST: PlaylistConfig = {
+  mode: 'single', items: [], isPlaying: false, currentIndex: 0, defaultDurationSec: 10,
+}
+
+function readPlaylist(): PlaylistConfig {
+  if (!existsSync(PLAYLIST_PATH)) return { ...DEFAULT_PLAYLIST }
+  try { return JSON.parse(readFileSync(PLAYLIST_PATH, 'utf-8')) } catch { return { ...DEFAULT_PLAYLIST } }
+}
+
+function writePlaylist(pl: PlaylistConfig): void {
+  writeFileSync(PLAYLIST_PATH, JSON.stringify(pl, null, 2), 'utf-8')
+}
+
+function broadcastPlaylist(pl: PlaylistConfig): void {
+  const msg = JSON.stringify({ type: 'playlist-update', playlist: pl })
+  clients.forEach(ws => { try { ws.send(msg) } catch {} })
+}
+
+let playlistTimer: ReturnType<typeof setTimeout> | null = null
+
+function stopPlaylistTimer(): void {
+  if (playlistTimer) { clearTimeout(playlistTimer); playlistTimer = null }
+}
+
+function findNextReadyIndex(items: PlaylistItem[], from: number): number {
+  const n = items.length
+  for (let i = 1; i <= n; i++) {
+    const idx = (from + i) % n
+    if (items[idx]?.status === 'ready') return idx
+  }
+  return -1
+}
+
+function applyItemBackground(gifPath: string): void {
+  try {
+    let s = readSettings()
+    s = mergeDefaults(s, { backgroundImage: gifPath })
+    writeSettings(s)
+  } catch {}
+}
+
+function scheduleAdvance(pl: PlaylistConfig): void {
+  stopPlaylistTimer()
+  if (!pl.isPlaying || pl.items.length === 0) return
+  const item = pl.items[pl.currentIndex]
+  if (!item || item.status !== 'ready') return
+  const delay = item.durationSec * 1000
+  playlistTimer = setTimeout(() => {
+    const current = readPlaylist()
+    if (!current.isPlaying || current.items.length === 0) return
+    const nextIdx = findNextReadyIndex(current.items, current.currentIndex)
+    if (nextIdx === -1) return
+    const nextItem = current.items[nextIdx]
+    if (nextItem.gifPath) applyItemBackground(nextItem.gifPath)
+    const updated: PlaylistConfig = { ...current, currentIndex: nextIdx }
+    writePlaylist(updated)
+    broadcastPlaylist(updated)
+    scheduleAdvance(updated)
+  }, delay)
+}
+
+// Resume timer if server restarts while playlist was playing
+;(function resumePlaylistOnStart() {
+  const pl = readPlaylist()
+  if (pl.isPlaying && pl.items.length > 0) scheduleAdvance(pl)
+}())
 
 let watchDebounce: ReturnType<typeof setTimeout> | null = null
 watch(WT_SETTINGS_PATH, () => {
@@ -253,6 +323,156 @@ async function handleRequest(req: Request): Promise<Response> {
     const h = addCors({ 'Content-Type': mime })
     h.set('Accept-Ranges', 'bytes')
     return new Response(Bun.file(filePath), { headers: h })
+  }
+
+  // ── Playlist ────────────────────────────────────────────────
+
+  if (method === 'GET' && pathname === '/api/playlist') {
+    return json(readPlaylist())
+  }
+
+  if (method === 'PATCH' && pathname === '/api/playlist') {
+    let body: Partial<PlaylistConfig>
+    try { body = await req.json() } catch { return json({ error: 'invalid body' }, 400) }
+    const pl = readPlaylist()
+    const updated: PlaylistConfig = { ...pl, ...body }
+    writePlaylist(updated)
+    broadcastPlaylist(updated)
+    if (!updated.isPlaying) stopPlaylistTimer()
+    return json({ playlist: updated })
+  }
+
+  if (method === 'POST' && pathname === '/api/playlist/items') {
+    let body: { sourcePath: string }
+    try { body = await req.json() } catch { return json({ error: 'invalid body' }, 400) }
+    const sourcePath = body.sourcePath?.trim()
+    if (!sourcePath) return json({ error: 'sourcePath required' }, 400)
+    const isVideo = /\.(mp4|webm|ogg|mov|avi|mkv)$/i.test(sourcePath)
+    const isImage = /\.(png|jpg|jpeg|webp|bmp|gif)$/i.test(sourcePath)
+    if (!isVideo && !isImage) return json({ error: 'unsupported file type' }, 400)
+    const pl = readPlaylist()
+    const newItem: PlaylistItem = {
+      id: crypto.randomUUID(),
+      sourcePath,
+      gifPath: isImage ? sourcePath : null,
+      status: isImage ? 'ready' : 'idle',
+      durationSec: pl.defaultDurationSec,
+    }
+    const updated: PlaylistConfig = { ...pl, items: [...pl.items, newItem] }
+    writePlaylist(updated)
+    broadcastPlaylist(updated)
+    return json({ playlist: updated }, 201)
+  }
+
+  if (method === 'POST' && pathname === '/api/playlist/play') {
+    const pl = readPlaylist()
+    const readyAtCurrent = pl.items[pl.currentIndex]?.status === 'ready'
+    const firstReadyIdx = readyAtCurrent ? pl.currentIndex : pl.items.findIndex(i => i.status === 'ready')
+    if (firstReadyIdx === -1) return json({ error: 'no ready items' }, 400)
+    const item = pl.items[firstReadyIdx]
+    if (item.gifPath) applyItemBackground(item.gifPath)
+    const updated: PlaylistConfig = { ...pl, isPlaying: true, currentIndex: firstReadyIdx }
+    writePlaylist(updated)
+    broadcastPlaylist(updated)
+    scheduleAdvance(updated)
+    return json({ playlist: updated })
+  }
+
+  if (method === 'POST' && pathname === '/api/playlist/pause') {
+    stopPlaylistTimer()
+    const pl = readPlaylist()
+    const updated: PlaylistConfig = { ...pl, isPlaying: false }
+    writePlaylist(updated)
+    broadcastPlaylist(updated)
+    return json({ playlist: updated })
+  }
+
+  if (method === 'POST' && pathname === '/api/playlist/next') {
+    const pl = readPlaylist()
+    if (pl.items.length === 0) return json({ error: 'empty playlist' }, 400)
+    stopPlaylistTimer()
+    const nextIdx = findNextReadyIndex(pl.items, pl.currentIndex)
+    if (nextIdx === -1) return json({ error: 'no ready items' }, 400)
+    const nextItem = pl.items[nextIdx]
+    if (nextItem.gifPath) applyItemBackground(nextItem.gifPath)
+    const updated: PlaylistConfig = { ...pl, currentIndex: nextIdx }
+    writePlaylist(updated)
+    broadcastPlaylist(updated)
+    if (pl.isPlaying) scheduleAdvance(updated)
+    return json({ playlist: updated })
+  }
+
+  if (method === 'POST' && pathname === '/api/playlist/prev') {
+    const pl = readPlaylist()
+    if (pl.items.length === 0) return json({ error: 'empty playlist' }, 400)
+    stopPlaylistTimer()
+    const n = pl.items.length
+    let prevIdx = -1
+    for (let i = 1; i <= n; i++) {
+      const idx = (pl.currentIndex - i + n) % n
+      if (pl.items[idx]?.status === 'ready') { prevIdx = idx; break }
+    }
+    if (prevIdx === -1) return json({ error: 'no ready items' }, 400)
+    const prevItem = pl.items[prevIdx]
+    if (prevItem.gifPath) applyItemBackground(prevItem.gifPath)
+    const updated: PlaylistConfig = { ...pl, currentIndex: prevIdx }
+    writePlaylist(updated)
+    broadcastPlaylist(updated)
+    if (pl.isPlaying) scheduleAdvance(updated)
+    return json({ playlist: updated })
+  }
+
+  if (method === 'POST' && pathname === '/api/playlist/jump') {
+    let body: { index: number }
+    try { body = await req.json() } catch { return json({ error: 'invalid body' }, 400) }
+    const pl = readPlaylist()
+    const { index } = body
+    if (index < 0 || index >= pl.items.length) return json({ error: 'index out of range' }, 400)
+    stopPlaylistTimer()
+    const item = pl.items[index]
+    if (item.gifPath && item.status === 'ready') applyItemBackground(item.gifPath)
+    const updated: PlaylistConfig = { ...pl, currentIndex: index }
+    writePlaylist(updated)
+    broadcastPlaylist(updated)
+    if (pl.isPlaying && item.status === 'ready') scheduleAdvance(updated)
+    return json({ playlist: updated })
+  }
+
+  const plItemMatch = pathname.match(/^\/api\/playlist\/items\/([^/]+)$/)
+
+  if (method === 'PATCH' && plItemMatch) {
+    const id = decodeURIComponent(plItemMatch[1])
+    let body: Partial<PlaylistItem>
+    try { body = await req.json() } catch { return json({ error: 'invalid body' }, 400) }
+    const pl = readPlaylist()
+    const idx = pl.items.findIndex(i => i.id === id)
+    if (idx === -1) return json({ error: 'item not found' }, 404)
+    const updatedItem: PlaylistItem = { ...pl.items[idx], ...body }
+    const items = pl.items.map((it, i) => i === idx ? updatedItem : it)
+    const updated: PlaylistConfig = { ...pl, items }
+    writePlaylist(updated)
+    broadcastPlaylist(updated)
+    if (updatedItem.status === 'ready' && updatedItem.gifPath && pl.isPlaying && pl.currentIndex === idx) {
+      applyItemBackground(updatedItem.gifPath)
+      scheduleAdvance(updated)
+    }
+    return json({ playlist: updated })
+  }
+
+  if (method === 'DELETE' && plItemMatch) {
+    const id = decodeURIComponent(plItemMatch[1])
+    const pl = readPlaylist()
+    const idx = pl.items.findIndex(i => i.id === id)
+    if (idx === -1) return json({ error: 'item not found' }, 404)
+    const items = pl.items.filter(i => i.id !== id)
+    let { currentIndex, isPlaying } = pl
+    if (items.length === 0) { currentIndex = 0; isPlaying = false; stopPlaylistTimer() }
+    else if (idx < currentIndex) currentIndex = Math.max(0, currentIndex - 1)
+    else if (idx === currentIndex) currentIndex = Math.min(currentIndex, items.length - 1)
+    const updated: PlaylistConfig = { ...pl, items, currentIndex, isPlaying }
+    writePlaylist(updated)
+    broadcastPlaylist(updated)
+    return json({ playlist: updated })
   }
 
   return new Response('Not Found', { status: 404, headers: addCors() })

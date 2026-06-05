@@ -59,3 +59,22 @@ export interface SavedTheme {
     scheme: ColorScheme | undefined
   }
 }
+
+export type PlaylistItemStatus = 'idle' | 'converting' | 'ready' | 'error'
+
+export interface PlaylistItem {
+  id: string
+  sourcePath: string
+  gifPath: string | null
+  status: PlaylistItemStatus
+  error?: string
+  durationSec: number
+}
+
+export interface PlaylistConfig {
+  mode: 'single' | 'playlist'
+  items: PlaylistItem[]
+  isPlaying: boolean
+  currentIndex: number
+  defaultDurationSec: number
+}
