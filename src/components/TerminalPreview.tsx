@@ -48,7 +48,7 @@ function TerminalPreviewInner({ settings }: Props) {
       d.backgroundImageStretchMode === 'fill' ? '100% 100%'
       : d.backgroundImageStretchMode === 'uniform' ? 'contain'
       : d.backgroundImageStretchMode === 'none' ? 'auto'
-      : 'cover'
+      : 'contain'
 
     const alignment = alignmentToCss(d.backgroundImageAlignment)
 

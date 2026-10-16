@@ -5,7 +5,7 @@ const WS_URL = `ws://${location.host}/ws`
 const VIDEO_RE = /\.(mp4|webm|ogg|mov|avi|mkv)$/i
 
 const DEFAULT_CONFIG: PlaylistConfig = {
-  mode: 'single', items: [], isPlaying: false, currentIndex: 0, defaultDurationSec: 10,
+  mode: 'single', items: [], isPlaying: false, currentIndex: 0, defaultDurationSec: 10, playbackMode: 'loop',
 }
 
 export function usePlaylist() {
@@ -147,13 +147,13 @@ export function usePlaylist() {
     }).catch(() => {})
   }, [])
 
-  const addItem = useCallback(async (sourcePath: string) => {
-    const res = await fetch('/api/playlist/items', {
+  const importFolder = useCallback(async (folderPath: string) => {
+    const res = await fetch('/api/playlist/import-folder', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sourcePath }),
+      body: JSON.stringify({ folderPath }),
     })
-    const data: { playlist?: PlaylistConfig; error?: string } = await res.json()
+    const data: { playlist?: PlaylistConfig; added?: number; skipped?: number; scanned?: number; removedDuplicates?: number; error?: string } = await res.json()
     if (data.playlist) setPlaylist(data.playlist)
     return data
   }, [])
@@ -270,7 +270,7 @@ export function usePlaylist() {
     }).catch(() => {})
   }, [])
 
-  return { playlist, loading, patchConfig, addItem, updateItem, removeItem, moveItem, play, pause, next, prev, jumpTo, retryItem }
+  return { playlist, loading, patchConfig, importFolder, updateItem, removeItem, moveItem, play, pause, next, prev, jumpTo, retryItem }
 }
 
 export type UsePlaylistReturn = ReturnType<typeof usePlaylist>

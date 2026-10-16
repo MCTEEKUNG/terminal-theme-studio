@@ -1,6 +1,7 @@
-import { readFileSync, writeFileSync, existsSync, watch, unlinkSync, renameSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, watch, unlinkSync, renameSync, readdirSync, mkdirSync } from 'fs'
+import { createHash } from 'crypto'
 import path from 'path'
-import type { WTSettings, SavedTheme, ColorScheme, ProfileDefaults, PlaylistItem, PlaylistConfig } from './src/types'
+import type { WTSettings, SavedTheme, ColorScheme, ProfileDefaults, PlaylistItem, PlaylistConfig, PlaylistPlaybackMode } from './src/types'
 import { mergeDefaults, upsertScheme } from './src/lib/settings'
 
 const WT_SETTINGS_PATH = path.join(
@@ -13,6 +14,7 @@ const WT_SETTINGS_PATH = path.join(
 
 const THEMES_PATH = path.join(import.meta.dir, 'themes.json')
 const PLAYLIST_PATH = path.join(import.meta.dir, 'playlist.json')
+const CONVERTED_GIF_DIR = path.join(import.meta.dir, '.playlist-cache')
 
 if (!existsSync(WT_SETTINGS_PATH)) {
   console.error(`Windows Terminal settings.json not found at:\n  ${WT_SETTINGS_PATH}`)
@@ -61,16 +63,77 @@ function writeThemes(themes: SavedTheme[]): void {
 // ── Playlist engine ──────────────────────────────────────────
 
 const DEFAULT_PLAYLIST: PlaylistConfig = {
-  mode: 'single', items: [], isPlaying: false, currentIndex: 0, defaultDurationSec: 10,
+  mode: 'single', items: [], isPlaying: false, currentIndex: 0, defaultDurationSec: 10, playbackMode: 'loop',
+}
+
+function isPlaybackMode(value: unknown): value is PlaylistPlaybackMode {
+  return value === 'loop' || value === 'shuffle' || value === 'repeat-one'
 }
 
 function readPlaylist(): PlaylistConfig {
   if (!existsSync(PLAYLIST_PATH)) return { ...DEFAULT_PLAYLIST }
-  try { return JSON.parse(readFileSync(PLAYLIST_PATH, 'utf-8')) } catch { return { ...DEFAULT_PLAYLIST } }
+  try {
+    const saved = JSON.parse(readFileSync(PLAYLIST_PATH, 'utf-8')) as Partial<PlaylistConfig>
+    // Playlist files created before playback modes existed keep their original
+    // behaviour: play every clip in order and then return to the first one.
+    return { ...DEFAULT_PLAYLIST, ...saved, playbackMode: isPlaybackMode(saved.playbackMode) ? saved.playbackMode : 'loop' }
+  } catch { return { ...DEFAULT_PLAYLIST } }
 }
 
 function writePlaylist(pl: PlaylistConfig): void {
   writeFileSync(PLAYLIST_PATH, JSON.stringify(pl, null, 2), 'utf-8')
+}
+
+const PLAYLIST_MEDIA_RE = /\.(mp4|webm|ogg|mov|avi|mkv|png|jpg|jpeg|webp|bmp|gif)$/i
+const PLAYLIST_IMAGE_RE = /\.(png|jpg|jpeg|webp|bmp|gif)$/i
+const PLAYLIST_VIDEO_RE = /\.(mp4|webm|ogg|mov|avi|mkv)$/i
+
+function createPlaylistItems(sourcePaths: string[], defaultDurationSec: number): PlaylistItem[] {
+  return sourcePaths.map(sourcePath => {
+    const isImage = PLAYLIST_IMAGE_RE.test(sourcePath)
+    return {
+      id: crypto.randomUUID(),
+      sourcePath,
+      gifPath: isImage ? sourcePath : null,
+      status: isImage ? 'ready' : 'idle',
+      durationSec: defaultDurationSec,
+    }
+  })
+}
+
+function findMediaFiles(folderPath: string): string[] {
+  const files: string[] = []
+  const cachePath = path.resolve(CONVERTED_GIF_DIR).toLowerCase()
+  const visit = (directory: string) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const entryPath = path.join(directory, entry.name)
+      if (entry.isDirectory() && path.resolve(entryPath).toLowerCase() !== cachePath) visit(entryPath)
+      else if (entry.isFile() && PLAYLIST_MEDIA_RE.test(entry.name)) files.push(entryPath)
+    }
+  }
+  visit(folderPath)
+  // GIFs made by older versions were written beside their source video.  Do
+  // not re-import those derivative files; standalone GIFs remain supported.
+  const videoStems = new Set(files
+    .filter(filePath => PLAYLIST_VIDEO_RE.test(filePath))
+    .map(filePath => path.join(path.dirname(filePath), path.basename(filePath, path.extname(filePath))).toLowerCase()))
+  return files
+    .filter(filePath => !/\.gif$/i.test(filePath) || !videoStems.has(
+      path.join(path.dirname(filePath), path.basename(filePath, path.extname(filePath))).toLowerCase()
+    ))
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+}
+
+function isLegacyGeneratedGif(item: PlaylistItem, videoStems: Set<string>): boolean {
+  if (!/\.gif$/i.test(item.sourcePath)) return false
+  const stem = path.join(path.dirname(item.sourcePath), path.basename(item.sourcePath, path.extname(item.sourcePath))).toLowerCase()
+  return videoStems.has(stem)
+}
+
+function getConvertedGifPath(videoPath: string): string {
+  const stem = path.basename(videoPath, path.extname(videoPath))
+  const hash = createHash('sha256').update(videoPath).digest('hex').slice(0, 12)
+  return path.join(CONVERTED_GIF_DIR, `${stem}-${hash}.gif`)
 }
 
 function broadcastPlaylist(pl: PlaylistConfig): void {
@@ -93,10 +156,34 @@ function findNextReadyIndex(items: PlaylistItem[], from: number): number {
   return -1
 }
 
+function findNextPlaybackIndex(pl: PlaylistConfig): number {
+  const current = pl.items[pl.currentIndex]
+  if (pl.playbackMode === 'repeat-one' && current?.status === 'ready') return pl.currentIndex
+
+  if (pl.playbackMode === 'shuffle') {
+    const candidates = pl.items
+      .map((item, index) => ({ item, index }))
+      .filter(({ item, index }) => item.status === 'ready' && index !== pl.currentIndex)
+    if (candidates.length > 0) return candidates[Math.floor(Math.random() * candidates.length)].index
+    return current?.status === 'ready' ? pl.currentIndex : -1
+  }
+
+  return findNextReadyIndex(pl.items, pl.currentIndex)
+}
+
 function applyItemBackground(gifPath: string): void {
   try {
     let s = readSettings()
-    s = mergeDefaults(s, { backgroundImage: gifPath })
+    const defaults = s.profiles.defaults
+    // Windows Terminal defaults to a cover-like crop when this field is
+    // absent. Keep playlist transitions from unexpectedly filling the screen;
+    // explicit WebUI choices are preserved.
+    s = mergeDefaults(s, {
+      backgroundImage: gifPath,
+      backgroundImageStretchMode: defaults.backgroundImageStretchMode ?? 'uniform',
+      backgroundImageAlignment: defaults.backgroundImageAlignment ?? 'center',
+      backgroundImageOpacity: defaults.backgroundImageOpacity ?? 1,
+    })
     writeSettings(s)
   } catch {}
 }
@@ -110,7 +197,7 @@ function scheduleAdvance(pl: PlaylistConfig): void {
   playlistTimer = setTimeout(() => {
     const current = readPlaylist()
     if (!current.isPlaying || current.items.length === 0) return
-    const nextIdx = findNextReadyIndex(current.items, current.currentIndex)
+    const nextIdx = findNextPlaybackIndex(current)
     if (nextIdx === -1) return
     const nextItem = current.items[nextIdx]
     if (nextItem.gifPath) applyItemBackground(nextItem.gifPath)
@@ -247,7 +334,10 @@ async function handleRequest(req: Request): Promise<Response> {
       return json({ error: 'not a video file' }, 400)
     }
 
-    const gifPath = videoPath.replace(/\.[^.]+$/, '.gif')
+    // Keep generated GIFs separate from the user's media folder so an import
+    // never sees them as extra clips on a later scan.
+    mkdirSync(CONVERTED_GIF_DIR, { recursive: true })
+    const gifPath = getConvertedGifPath(videoPath)
     const tmpPath = `${gifPath}.${crypto.randomUUID()}.tmp`
 
     // Cancel any in-flight conversion before starting a new one
@@ -345,10 +435,15 @@ async function handleRequest(req: Request): Promise<Response> {
     let body: Partial<PlaylistConfig>
     try { body = await req.json() } catch { return json({ error: 'invalid body' }, 400) }
     const pl = readPlaylist()
-    const updated: PlaylistConfig = { ...pl, ...body }
+    const updated: PlaylistConfig = {
+      ...pl,
+      ...body,
+      playbackMode: isPlaybackMode(body.playbackMode) ? body.playbackMode : pl.playbackMode,
+    }
     writePlaylist(updated)
     broadcastPlaylist(updated)
     if (!updated.isPlaying) stopPlaylistTimer()
+    else scheduleAdvance(updated)
     return json({ playlist: updated })
   }
 
@@ -357,31 +452,78 @@ async function handleRequest(req: Request): Promise<Response> {
     try { body = await req.json() } catch { return json({ error: 'invalid body' }, 400) }
     const sourcePath = body.sourcePath?.trim()
     if (!sourcePath) return json({ error: 'sourcePath required' }, 400)
-    const isVideo = /\.(mp4|webm|ogg|mov|avi|mkv)$/i.test(sourcePath)
-    const isImage = /\.(png|jpg|jpeg|webp|bmp|gif)$/i.test(sourcePath)
-    if (!isVideo && !isImage) return json({ error: 'unsupported file type' }, 400)
+    if (!PLAYLIST_MEDIA_RE.test(sourcePath)) return json({ error: 'unsupported file type' }, 400)
+
     const pl = readPlaylist()
-    const newItem: PlaylistItem = {
-      id: crypto.randomUUID(),
-      sourcePath,
-      gifPath: isImage ? sourcePath : null,
-      status: isImage ? 'ready' : 'idle',
-      durationSec: pl.defaultDurationSec,
-    }
-    // Point currentIndex at the new item when not playing
+    const newItems = createPlaylistItems([sourcePath], pl.defaultDurationSec)
+
+    // Point currentIndex at the first new item when not playing.
     const newIndex = pl.items.length
     const updated: PlaylistConfig = {
       ...pl,
-      items: [...pl.items, newItem],
+      items: [...pl.items, ...newItems],
       currentIndex: pl.isPlaying ? pl.currentIndex : newIndex,
     }
-    // Auto-preview: apply image background immediately when not playing
-    if (!pl.isPlaying && isImage && newItem.gifPath) {
-      applyItemBackground(newItem.gifPath)
+    // Auto-preview the first newly added image when not playing.
+    const previewItem = newItems.find(item => item.gifPath)
+    if (!pl.isPlaying && previewItem?.gifPath) {
+      applyItemBackground(previewItem.gifPath)
     }
     writePlaylist(updated)
     broadcastPlaylist(updated)
     return json({ playlist: updated }, 201)
+  }
+
+  if (method === 'POST' && pathname === '/api/playlist/import-folder') {
+    let body: { folderPath: string }
+    try { body = await req.json() } catch { return json({ error: 'invalid body' }, 400) }
+    const folderPath = body.folderPath?.trim()
+    if (!folderPath) return json({ error: 'folderPath required' }, 400)
+
+    let mediaPaths: string[]
+    try {
+      mediaPaths = findMediaFiles(folderPath)
+    } catch {
+      return json({ error: 'folder not found or cannot be read' }, 404)
+    }
+
+    const pl = readPlaylist()
+    // Clean up playlist entries that older versions imported from the GIFs
+    // they had generated beside matching source videos. Files are not deleted.
+    const videoStems = new Set(pl.items
+      .filter(item => PLAYLIST_VIDEO_RE.test(item.sourcePath))
+      .map(item => path.join(path.dirname(item.sourcePath), path.basename(item.sourcePath, path.extname(item.sourcePath))).toLowerCase()))
+    const retainedItems = pl.items.filter(item => !isLegacyGeneratedGif(item, videoStems))
+    const removedDuplicates = pl.items.length - retainedItems.length
+    const existingPaths = new Set(retainedItems.map(item => item.sourcePath.toLowerCase()))
+    const pathsToAdd = mediaPaths.filter(filePath => !existingPaths.has(filePath.toLowerCase()))
+    const newItems = createPlaylistItems(pathsToAdd, pl.defaultDurationSec)
+    const newIndex = retainedItems.length
+    const currentItemId = pl.items[pl.currentIndex]?.id
+    const retainedCurrentIndex = retainedItems.findIndex(item => item.id === currentItemId)
+    const currentIndex = retainedItems.length === 0
+      ? 0
+      : retainedCurrentIndex >= 0
+        ? retainedCurrentIndex
+        : Math.min(pl.currentIndex, retainedItems.length - 1)
+    const updated: PlaylistConfig = {
+      ...pl,
+      items: [...retainedItems, ...newItems],
+      currentIndex: retainedItems.length === 0
+        ? 0
+        : (pl.isPlaying || newItems.length === 0 ? currentIndex : newIndex),
+    }
+    const previewItem = newItems.find(item => item.gifPath)
+    if (!pl.isPlaying && previewItem?.gifPath) applyItemBackground(previewItem.gifPath)
+    writePlaylist(updated)
+    broadcastPlaylist(updated)
+    return json({
+      playlist: updated,
+      added: newItems.length,
+      skipped: mediaPaths.length - newItems.length,
+      scanned: mediaPaths.length,
+      removedDuplicates,
+    }, 201)
   }
 
   if (method === 'POST' && pathname === '/api/playlist/play') {
@@ -411,7 +553,7 @@ async function handleRequest(req: Request): Promise<Response> {
     const pl = readPlaylist()
     if (pl.items.length === 0) return json({ error: 'empty playlist' }, 400)
     stopPlaylistTimer()
-    const nextIdx = findNextReadyIndex(pl.items, pl.currentIndex)
+    const nextIdx = findNextPlaybackIndex(pl)
     if (nextIdx === -1) return json({ error: 'no ready items' }, 400)
     const nextItem = pl.items[nextIdx]
     if (nextItem.gifPath) applyItemBackground(nextItem.gifPath)

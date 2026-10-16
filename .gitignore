@@ -2,3 +2,4 @@ node_modules/
 dist/
 .superpowers/
 themes.json
+.playlist-cache/

@@ -27,6 +27,11 @@ export default function App() {
 
   return (
     <div className="app">
+      <div className="ambient-mesh" aria-hidden="true">
+        <div className="ambient-orb ambient-orb-1" />
+        <div className="ambient-orb ambient-orb-2" />
+        <div className="ambient-orb ambient-orb-3" />
+      </div>
       <Sidebar
         activePanel={activePanel}
         onPanelChange={setActivePanel}

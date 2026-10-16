@@ -2,7 +2,9 @@
   "name": "terminal-theme-studio",
   "version": "1.0.0",
   "scripts": {
-    "dev": "concurrently \"bun server.ts\" \"vite\"",
+    "dev": "concurrently -k \"bun server.ts\" \"vite\"",
+    "server": "bun server.ts",
+    "ui": "vite",
     "build": "vite build"
   },
   "dependencies": {

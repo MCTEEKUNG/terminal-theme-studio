@@ -36,6 +36,7 @@ export interface ProfileDefaults {
   font?: FontSettings
   backgroundImage?: string | null
   backgroundImageOpacity?: number
+  adjustIndistinguishableColors?: 'always' | 'indexed' | 'never'
   backgroundImageStretchMode?: 'none' | 'fill' | 'uniform' | 'uniformToFill'
   backgroundImageAlignment?: 'center' | 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | 'top' | 'bottom' | 'left' | 'right'
 }
@@ -61,6 +62,7 @@ export interface SavedTheme {
 }
 
 export type PlaylistItemStatus = 'idle' | 'converting' | 'ready' | 'error'
+export type PlaylistPlaybackMode = 'loop' | 'shuffle' | 'repeat-one'
 
 export interface PlaylistItem {
   id: string
@@ -77,4 +79,5 @@ export interface PlaylistConfig {
   isPlaying: boolean
   currentIndex: number
   defaultDurationSec: number
+  playbackMode: PlaylistPlaybackMode
 }
