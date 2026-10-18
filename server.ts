@@ -3,38 +3,60 @@ import { createHash } from 'crypto'
 import path from 'path'
 import type { WTSettings, SavedTheme, ColorScheme, ProfileDefaults, PlaylistItem, PlaylistConfig, PlaylistPlaybackMode } from './src/types'
 import { mergeDefaults, upsertScheme } from './src/lib/settings'
+import { createPtyxisBridge } from './lib/ptyxis'
+import { createGlassBridge, glassBlurAmount } from './lib/glass'
+import { validateAppearance } from './lib/appearance'
+import { createLiveAppearanceBridge } from './lib/live-appearance'
+import { isDurationMode, isVideo, playlistDuration } from './lib/playlist-timing'
+import { nativeMediaPath, nativeStatus, openNativeTerminal } from './lib/native-terminal'
 
-const WT_SETTINGS_PATH = path.join(
-  process.env.LOCALAPPDATA ?? '',
-  'Packages',
-  'Microsoft.WindowsTerminal_8wekyb3d8bbwe',
-  'LocalState',
-  'settings.json'
-)
+const WT_SETTINGS_PATH =
+  process.env.WT_SETTINGS_PATH ??
+  (process.env.LOCALAPPDATA
+    ? path.join(
+        process.env.LOCALAPPDATA,
+        'Packages',
+        'Microsoft.WindowsTerminal_8wekyb3d8bbwe',
+        'LocalState',
+        'settings.json'
+      )
+    : // Fallback for non-Windows dev environments: keep the real settings
+      // file untouched and store them beside the project instead.
+      path.join(import.meta.dir, 'wt-settings.json'))
 
 const THEMES_PATH = path.join(import.meta.dir, 'themes.json')
 const PLAYLIST_PATH = path.join(import.meta.dir, 'playlist.json')
 const CONVERTED_GIF_DIR = path.join(import.meta.dir, '.playlist-cache')
+const terminalBridge = createPtyxisBridge(process.platform === 'linux' && !process.env.WT_SETTINGS_PATH && !process.env.LOCALAPPDATA)
+
+const liveAppearanceBridge = createLiveAppearanceBridge(process.platform === 'linux' && !process.env.WT_SETTINGS_PATH && !process.env.LOCALAPPDATA)
+const glassBridge = createGlassBridge(process.platform === 'linux' && !process.env.WT_SETTINGS_PATH && !process.env.LOCALAPPDATA)
 
 if (!existsSync(WT_SETTINGS_PATH)) {
-  console.error(`Windows Terminal settings.json not found at:\n  ${WT_SETTINGS_PATH}`)
-  process.exit(1)
+  console.log(`Windows Terminal settings.json not found, creating starter file at:\n  ${WT_SETTINGS_PATH}`)
+  writeFileSync(
+    WT_SETTINGS_PATH,
+    JSON.stringify({ profiles: { defaults: {}, list: [] }, schemes: [] }, null, 4),
+    'utf-8'
+  )
 }
 
 const clients = new Set<import('bun').ServerWebSocket<unknown>>()
 
-let activeFfmpeg: { proc: import('bun').Subprocess; tmpPath: string } | null = null
+let conversionQueue: Promise<void> = Promise.resolve()
 
-function killActiveFfmpeg(): void {
-  if (!activeFfmpeg) return
-  try { activeFfmpeg.proc.kill() } catch {}
-  try {
-    if (existsSync(activeFfmpeg.tmpPath)) unlinkSync(activeFfmpeg.tmpPath)
-  } catch {}
-  activeFfmpeg = null
+async function acquireConversion(): Promise<() => void> {
+  const previous = conversionQueue
+  let release!: () => void
+  conversionQueue = new Promise<void>(resolve => { release = resolve })
+  await previous
+  return release
 }
 
 let cachedSettings: WTSettings = JSON.parse(readFileSync(WT_SETTINGS_PATH, 'utf-8'))
+terminalBridge.schedule(cachedSettings)
+glassBridge.schedule(cachedSettings)
+liveAppearanceBridge.schedule(cachedSettings)
 
 function readSettings(): WTSettings {
   return cachedSettings
@@ -43,11 +65,17 @@ function readSettings(): WTSettings {
 function writeSettings(settings: WTSettings): void {
   writeFileSync(WT_SETTINGS_PATH, JSON.stringify(settings, null, 4), 'utf-8')
   cachedSettings = settings
+  terminalBridge.schedule(settings)
+  glassBridge.schedule(settings)
+  liveAppearanceBridge.schedule(settings)
 }
 
 function reloadSettingsFromDisk(): void {
   try {
     cachedSettings = JSON.parse(readFileSync(WT_SETTINGS_PATH, 'utf-8'))
+    terminalBridge.schedule(cachedSettings)
+    glassBridge.schedule(cachedSettings)
+    liveAppearanceBridge.schedule(cachedSettings)
   } catch {}
 }
 
@@ -63,7 +91,7 @@ function writeThemes(themes: SavedTheme[]): void {
 // ── Playlist engine ──────────────────────────────────────────
 
 const DEFAULT_PLAYLIST: PlaylistConfig = {
-  mode: 'single', items: [], isPlaying: false, currentIndex: 0, defaultDurationSec: 10, playbackMode: 'loop',
+  mode: 'single', items: [], isPlaying: false, currentIndex: 0, defaultDurationSec: 10, durationMode: 'fixed', playbackMode: 'loop',
 }
 
 function isPlaybackMode(value: unknown): value is PlaylistPlaybackMode {
@@ -76,7 +104,7 @@ function readPlaylist(): PlaylistConfig {
     const saved = JSON.parse(readFileSync(PLAYLIST_PATH, 'utf-8')) as Partial<PlaylistConfig>
     // Playlist files created before playback modes existed keep their original
     // behaviour: play every clip in order and then return to the first one.
-    return { ...DEFAULT_PLAYLIST, ...saved, playbackMode: isPlaybackMode(saved.playbackMode) ? saved.playbackMode : 'loop' }
+    return { ...DEFAULT_PLAYLIST, ...saved, durationMode: isDurationMode(saved.durationMode) ? saved.durationMode : 'fixed', playbackMode: isPlaybackMode(saved.playbackMode) ? saved.playbackMode : 'loop' }
   } catch { return { ...DEFAULT_PLAYLIST } }
 }
 
@@ -141,9 +169,15 @@ function broadcastPlaylist(pl: PlaylistConfig): void {
   clients.forEach(ws => { try { ws.send(msg) } catch {} })
 }
 
+const playlistSession = crypto.randomUUID()
+let playlistUsesEndEvents = false
+let playlistTimerGeneration = 0
+const playbackToken = () => `${playlistSession}:${playlistTimerGeneration}`
 let playlistTimer: ReturnType<typeof setTimeout> | null = null
 
 function stopPlaylistTimer(): void {
+  playlistTimerGeneration++
+  playlistUsesEndEvents = false
   if (playlistTimer) { clearTimeout(playlistTimer); playlistTimer = null }
 }
 
@@ -188,24 +222,51 @@ function applyItemBackground(gifPath: string): void {
   } catch {}
 }
 
+function advancePlaylist(): void {
+  const current = readPlaylist()
+  if (!current.isPlaying || current.items.length === 0) return
+  const nextIdx = findNextPlaybackIndex(current)
+  if (nextIdx === -1) return
+  const nextItem = current.items[nextIdx]
+  if (nextItem.gifPath) applyItemBackground(nextItem.gifPath)
+  const updated: PlaylistConfig = { ...current, currentIndex: nextIdx }
+  writePlaylist(updated)
+  broadcastPlaylist(updated)
+  scheduleAdvance(updated)
+}
+
+function nativeEndEventsAvailable(): boolean {
+  const status = nativeStatus()
+  return status.state === 'running' && status.playlistEndEvents === true
+}
+
 function scheduleAdvance(pl: PlaylistConfig): void {
   stopPlaylistTimer()
   if (!pl.isPlaying || pl.items.length === 0) return
   const item = pl.items[pl.currentIndex]
   if (!item || item.status !== 'ready') return
-  const delay = item.durationSec * 1000
-  playlistTimer = setTimeout(() => {
-    const current = readPlaylist()
-    if (!current.isPlaying || current.items.length === 0) return
-    const nextIdx = findNextPlaybackIndex(current)
-    if (nextIdx === -1) return
-    const nextItem = current.items[nextIdx]
-    if (nextItem.gifPath) applyItemBackground(nextItem.gifPath)
-    const updated: PlaylistConfig = { ...current, currentIndex: nextIdx }
-    writePlaylist(updated)
-    broadcastPlaylist(updated)
-    scheduleAdvance(updated)
-  }, delay)
+  // The native player signals real end-of-stream. The duration fallback also
+  // supports existing terminals and background playback without a native window.
+  if (pl.durationMode === 'full-video' && isVideo(item.sourcePath) && nativeEndEventsAvailable()) {
+    playlistUsesEndEvents = true
+    const monitor = () => {
+      playlistTimer = setTimeout(() => {
+        if (nativeEndEventsAvailable()) monitor()
+        else scheduleAdvance(readPlaylist())
+      }, 1000)
+    }
+    monitor()
+    return
+  }
+  const generation = playlistTimerGeneration
+  void playlistDuration(pl, item).then(seconds => {
+    if (generation !== playlistTimerGeneration) return
+    if (seconds === null) {
+      console.warn(`Cannot read video duration: ${item.sourcePath}; keeping this clip until Next is pressed.`)
+      return
+    }
+    playlistTimer = setTimeout(advancePlaylist, Math.min(seconds * 1000, 2_147_483_647))
+  })
 }
 
 // Resume timer if server restarts while playlist was playing
@@ -249,8 +310,61 @@ async function handleRequest(req: Request): Promise<Response> {
     return new Response(null, { status: 204, headers: addCors() })
   }
 
+  if (method === 'GET' && pathname === '/api/health') return json({ app: 'terminal-theme-studio', pid: process.pid })
+
   if (method === 'GET' && pathname === '/api/settings') {
     return json(readSettings())
+  }
+
+  if (method === 'GET' && pathname === '/api/appearance') return json({ ...liveAppearanceBridge.status, native: nativeStatus() })
+
+  if (method === 'GET' && pathname === '/api/glass') return json(glassBridge.status)
+
+  if (method === 'GET' && pathname === '/api/terminal') {
+    return json(terminalBridge.status)
+  }
+
+  if (method === 'GET' && pathname === '/api/preview/source') {
+    const requested = url.searchParams.get('path') ?? ''
+    const item = readPlaylist().items.find(item => item.gifPath === requested || item.sourcePath === requested)
+    return json({ path: item?.sourcePath ?? requested })
+  }
+
+  if (method === 'GET' && pathname === '/api/native/state') {
+    const settings = readSettings()
+    const pl = readPlaylist()
+    if (!playlistUsesEndEvents && pl.isPlaying && pl.durationMode === 'full-video'
+      && isVideo(pl.items[pl.currentIndex]?.sourcePath ?? '') && nativeEndEventsAvailable()) scheduleAdvance(pl)
+    return json({ settings, mediaPath: nativeMediaPath(settings, pl),
+      playlistPlayback: { token: playbackToken(), isPlaying: pl.isPlaying && pl.mode === 'playlist', durationMode: pl.durationMode } })
+  }
+
+  if (method === 'POST' && pathname === '/api/playlist/ended') {
+    if (req.headers.get('X-Theme-Studio') !== 'native-terminal') return json({ error: 'native request required' }, 403)
+    let body: { token?: string; mediaPath?: string }
+    try { body = await req.json() } catch { return json({ error: 'invalid body' }, 400) }
+    const pl = readPlaylist()
+    const item = pl.items[pl.currentIndex]
+    // Tokens prevent two windows/tabs or a delayed EOS from advancing twice.
+    if (body.token !== playbackToken() || !pl.isPlaying || pl.mode !== 'playlist'
+      || pl.durationMode !== 'full-video' || !item || !isVideo(item.sourcePath)
+      || body.mediaPath !== item.sourcePath) return json({ advanced: false })
+    advancePlaylist()
+    return json({ advanced: true })
+  }
+
+  if (method === 'GET' && pathname === '/api/native/status') return json(nativeStatus())
+
+  if (method === 'POST' && pathname === '/api/native/open') {
+    // The native shell accepts keyboard input only in its own GTK window.
+    // Require a same-origin UI request to launch that window.
+    const origin = req.headers.get('origin')
+    if (origin && !['http://localhost:5555', 'http://127.0.0.1:5555', 'http://localhost:3001', 'http://127.0.0.1:3001'].includes(origin)) {
+      return json({ error: 'Open the terminal from the local Theme Studio page' }, 403)
+    }
+    if (req.headers.get('x-theme-studio') !== 'native-terminal') return json({ error: 'Native launch header required' }, 403)
+    try { return json(openNativeTerminal()) }
+    catch (error) { return json({ error: String(error) }, 500) }
   }
 
   if (method === 'PATCH' && pathname === '/api/settings') {
@@ -261,6 +375,14 @@ async function handleRequest(req: Request): Promise<Response> {
       return json({ error: 'invalid JSON body' }, 400)
     }
     try {
+      if (body.defaults) {
+        try { validateAppearance(body.defaults) }
+        catch (error) { return json({ error: String(error) }, 400) }
+      }
+      if (body.defaults && 'glassBlur' in body.defaults) {
+        try { glassBlurAmount(body.defaults.glassBlur) }
+        catch (error) { return json({ error: String(error) }, 400) }
+      }
       let settings = readSettings()
       if (body.defaults) settings = mergeDefaults(settings, body.defaults)
       if (body.scheme) settings = upsertScheme(settings, body.scheme)
@@ -340,10 +462,11 @@ async function handleRequest(req: Request): Promise<Response> {
     const gifPath = getConvertedGifPath(videoPath)
     const tmpPath = `${gifPath}.${crypto.randomUUID()}.tmp`
 
-    // Cancel any in-flight conversion before starting a new one
-    killActiveFfmpeg()
+    // Serialize requests from all tabs and modes without cancelling other work.
+    const release = await acquireConversion()
 
     try {
+      if (req.signal.aborted) return new Response(null, { status: 499, headers: addCors() })
       const proc = Bun.spawn([
         'ffmpeg', '-y', '-i', videoPath,
         '-vf', 'fps=12,scale=640:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=256[p];[s1][p]paletteuse=dither=bayer',
@@ -352,10 +475,10 @@ async function handleRequest(req: Request): Promise<Response> {
         tmpPath,
       ], { stderr: 'pipe' })
 
-      activeFfmpeg = { proc, tmpPath }
-
-      const onAbort = () => killActiveFfmpeg()
+      // An aborted request owns only this process, never another queued job.
+      const onAbort = () => { try { proc.kill() } catch {} }
       req.signal.addEventListener('abort', onAbort)
+      if (req.signal.aborted) onAbort()
 
       let exitCode: number
       let stderrPromise: Promise<string>
@@ -366,8 +489,6 @@ async function handleRequest(req: Request): Promise<Response> {
         exitCode = await proc.exited
       } finally {
         req.signal.removeEventListener('abort', onAbort)
-        // If activeFfmpeg still points at us, clear it (we're done)
-        if (activeFfmpeg?.proc === proc) activeFfmpeg = null
       }
 
       if (exitCode !== 0) {
@@ -402,6 +523,9 @@ async function handleRequest(req: Request): Promise<Response> {
         return json({ error: 'ffmpeg_missing' }, 503)
       }
       return json({ error: 'conversion failed', detail: msg }, 500)
+    } finally {
+      if (existsSync(tmpPath)) { try { unlinkSync(tmpPath) } catch {} }
+      release()
     }
   }
 
@@ -438,6 +562,7 @@ async function handleRequest(req: Request): Promise<Response> {
     const updated: PlaylistConfig = {
       ...pl,
       ...body,
+      durationMode: isDurationMode(body.durationMode) ? body.durationMode : pl.durationMode,
       playbackMode: isPlaybackMode(body.playbackMode) ? body.playbackMode : pl.playbackMode,
     }
     writePlaylist(updated)
@@ -610,6 +735,7 @@ async function handleRequest(req: Request): Promise<Response> {
     const idx = pl.items.findIndex(i => i.id === id)
     if (idx === -1) return json({ error: 'item not found' }, 404)
     const updatedItem: PlaylistItem = { ...pl.items[idx], ...body }
+    if (updatedItem.status === 'ready') updatedItem.error = null
     const items = pl.items.map((it, i) => i === idx ? updatedItem : it)
     const updated: PlaylistConfig = { ...pl, items }
     writePlaylist(updated)
@@ -635,16 +761,29 @@ async function handleRequest(req: Request): Promise<Response> {
     const updated: PlaylistConfig = { ...pl, items, currentIndex, isPlaying }
     writePlaylist(updated)
     broadcastPlaylist(updated)
+    if (idx === pl.currentIndex) {
+      const next = items[currentIndex]
+      if (next?.gifPath) applyItemBackground(next.gifPath)
+      scheduleAdvance(updated)
+    }
     return json({ playlist: updated })
   }
 
+  if (method === 'GET' && (pathname === '/' || pathname.startsWith('/assets/'))) {
+    const root = path.join(import.meta.dir, 'dist')
+    const file = path.resolve(root, pathname === '/' ? 'index.html' : `.${pathname}`)
+    if (file.startsWith(root + path.sep) && existsSync(file)) return new Response(Bun.file(file))
+  }
   return new Response('Not Found', { status: 404, headers: addCors() })
 }
 
 const server = Bun.serve({
-  port: 3001,
+  hostname: '127.0.0.1',
+  port: Number(process.env.PORT ?? 3001),
   fetch(req, server) {
     const url = new URL(req.url)
+    // Conversion and queue waits can exceed Bun's default request idle timeout.
+    if (url.pathname === '/api/convert-gif') server.timeout(req, 0)
     if (url.pathname === '/ws') {
       if (server.upgrade(req)) return
       return new Response('WebSocket upgrade failed', { status: 400 })

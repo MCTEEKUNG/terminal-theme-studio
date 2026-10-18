@@ -5,7 +5,7 @@ const WS_URL = `ws://${location.host}/ws`
 const VIDEO_RE = /\.(mp4|webm|ogg|mov|avi|mkv)$/i
 
 const DEFAULT_CONFIG: PlaylistConfig = {
-  mode: 'single', items: [], isPlaying: false, currentIndex: 0, defaultDurationSec: 10, playbackMode: 'loop',
+  mode: 'single', items: [], isPlaying: false, currentIndex: 0, defaultDurationSec: 10, durationMode: 'fixed', playbackMode: 'loop',
 }
 
 export function usePlaylist() {
@@ -103,8 +103,7 @@ export function usePlaylist() {
           ? {
               status: 'ready' as const,
               gifPath: data.gifPath,
-              error: undefined,
-              ...(typeof data.durationSec === 'number' ? { durationSec: data.durationSec } : {}),
+              error: null,
             }
           : {
               status: 'error' as const,

@@ -1,8 +1,14 @@
+import { ColorsPanel } from './ColorsPanel'
+import { StudioIcon } from '../StudioIcon'
+import { useState } from 'react'
+import additionalThemes from '../../data/additionalThemes.json'
 import type { WTSettings, ColorScheme, ProfileDefaults } from '../../types'
 
 interface Props {
   settings: WTSettings
   onPatch: (body: { defaults?: Partial<ProfileDefaults>; scheme?: ColorScheme }) => void
+  isPtyxis?: boolean
+  plain?: boolean
 }
 
 export const PRESET_THEMES: ColorScheme[] = [
@@ -110,6 +116,7 @@ export const PRESET_THEMES: ColorScheme[] = [
     cyan: '#03edf9', brightCyan: '#03edf9',
     white: '#ffffff', brightWhite: '#ffffff',
   },
+  ...additionalThemes,
 ]
 
 function ThemeCard({
@@ -136,8 +143,14 @@ function ThemeCard({
     <button
       className={`theme-card ${isActive ? 'theme-card-active' : ''}`}
       onClick={onClick}
-      title={theme.name}
+      title={`Apply ${theme.name}`}
+      aria-pressed={isActive}
     >
+      <div className="theme-mini-terminal" style={{ background: theme.background, color: theme.foreground }} aria-hidden="true">
+        <div className="mini-dots"><i /><i /><i /></div>
+        <div><span style={{ color: theme.green }}>❯</span> <span style={{ color: theme.blue }}>~/projects</span></div>
+        <div><span style={{ color: theme.purple }}>const</span> mood = <span style={{ color: theme.yellow }}>'inspired'</span></div>
+      </div>
       <div className="theme-swatch">
         {swatchColors.map((color, i) => (
           <div key={i} style={{ flex: 1, background: color }} />
@@ -145,13 +158,15 @@ function ThemeCard({
       </div>
       <div className="theme-card-footer">
         <span className="theme-card-name">{theme.name}</span>
-        {isActive && <span className="theme-card-check">✓</span>}
+        {isActive && <span className="theme-card-check"><StudioIcon name="check" size={13} /></span>}
       </div>
     </button>
   )
 }
 
-export function ThemesPanel({ settings, onPatch }: Props) {
+export function ThemesPanel({ settings, onPatch, plain }: Props) {
+  const [query, setQuery] = useState('')
+  const filtered = PRESET_THEMES.filter(theme => theme.name.toLowerCase().includes(query.trim().toLowerCase()))
   const currentScheme = settings.profiles.defaults.colorScheme ?? ''
 
   function applyTheme(theme: ColorScheme) {
@@ -159,11 +174,13 @@ export function ThemesPanel({ settings, onPatch }: Props) {
   }
 
   return (
-    <div>
-      <div className="panel-title">Preset Themes</div>
-      <p className="panel-subtitle">Click a theme to instantly preview and apply it to Windows Terminal.</p>
+    <div className="themes-panel">
+      <h2 className="panel-title">{plain ? 'Color themes' : 'A palette for your flow.'}</h2>
+      <div className="current-theme"><span>Current theme</span><strong>{currentScheme || 'Terminal default'}</strong></div>
+      <div className="theme-search"><span aria-hidden="true">⌕</span><input type="search" aria-label="Search themes" placeholder="Find a theme…" value={query} onChange={e => setQuery(e.target.value)} /></div>
+      <div className="themes-count" role="status">{filtered.length} {filtered.length === 1 ? 'palette' : 'palettes'}{query && ` matching “${query}”`}</div>
       <div className="themes-grid">
-        {PRESET_THEMES.map(theme => (
+        {filtered.map(theme => (
           <ThemeCard
             key={theme.name}
             theme={theme}
@@ -172,6 +189,9 @@ export function ThemesPanel({ settings, onPatch }: Props) {
           />
         ))}
       </div>
+      {filtered.length === 0 && <div className="search-empty"><p>No themes found. Try another name.</p><button className="btn-secondary" onClick={() => setQuery('')}>Show all themes</button></div>}
+      <details className="control-group"><summary>Customize palette colors</summary><ColorsPanel settings={settings} onPatch={onPatch} /></details>
+      <p className="theme-tip">Make it yours with Typography, Transparency and Background. Save the full look to your collection.</p>
     </div>
   )
 }

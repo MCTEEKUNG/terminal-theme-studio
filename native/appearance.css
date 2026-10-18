@@ -1,0 +1,51 @@
+__WINDOW__, __WINDOW__ decoration, __WINDOW__ #studio-terminal-tabs, __WINDOW__ #studio-terminal-tabs > stack {
+    background-image: none; background-color: transparent; color: __FOREGROUND__;
+    box-shadow: none; border: none;
+}
+__WINDOW__ #studio-terminal-header, __WINDOW__ #studio-terminal-footer {
+    background-color: __BACKGROUND__; color: __FOREGROUND__; background-image: none;
+    box-shadow: none; border: none;
+}
+__WINDOW__ #studio-terminal-header {
+    min-height: __HEADER_MIN__px; padding: 3px 7px;
+}
+__WINDOW__ #studio-terminal-header separator {
+    background-color: transparent; min-width: 0; margin: 0; padding: 0;
+}
+__WINDOW__ #studio-terminal-header button {
+    background-image: none; background-color: transparent; color: __FOREGROUND__;
+    border: 1px solid transparent; border-radius: __TAB_RADIUS__px;
+    box-shadow: none; text-shadow: none; min-height: 24px; padding: 3px 6px;
+}
+__WINDOW__ #studio-terminal-header button:hover {
+    background-color: rgba(255,255,255,0.07);
+}
+__WINDOW__ #studio-terminal-header .terminal-tab {
+    padding: 2px 8px; margin: 1px 0; min-height: 28px;
+    border: 1px solid transparent; border-radius: __TAB_RADIUS__px;
+    background-color: transparent; background-image: none; color: __FOREGROUND__;
+    box-shadow: none;
+}
+__WINDOW__ #studio-terminal-header .terminal-tab:checked {
+    background-color: rgba(255,255,255,0.09); border-color: rgba(255,255,255,0.13);
+}
+__WINDOW__ #studio-terminal-header .terminal-tab button {
+    min-width: __CLOSE_SIZE__px; min-height: __CLOSE_SIZE__px; padding: 0; margin: 0; border: none;
+    border-radius: __CLOSE_RADIUS__px; outline-offset: -2px;
+}
+__WINDOW__ #studio-terminal-header .terminal-tab button:hover {
+    background-color: rgba(255,255,255,0.14);
+}
+
+/* BEGIN WEB APPEARANCE */
+__WINDOW__ #studio-terminal-tabs box.vertical { padding: 0px; }
+__WINDOW__ #studio-terminal-header { padding: 3px 7px; font-size: 14px; }
+__WINDOW__ #studio-terminal-header .terminal-tab { padding: 0; }
+__WINDOW__ #studio-terminal-header .terminal-tab > box { min-width: 0px; padding: 2px 8px; }
+__WINDOW__ #studio-terminal-header .terminal-tab:hover { background-color: rgba(255,255,255,0.06); }
+__WINDOW__ #studio-terminal-header .terminal-tab:checked { background-color: rgba(255,255,255,0.09); border-color: rgba(255,255,255,0.13); }
+__WINDOW__ #studio-terminal-header button:hover { background-color: rgba(255,255,255,0.07); }
+__WINDOW__ #studio-terminal-header .terminal-tab button:hover { background-color: rgba(255,255,255,0.14); }
+__WINDOW__ #studio-terminal-header button.titlebutton { min-width: 24px; min-height: 24px; border-radius: 9px; padding: 0; margin: 0; }
+__WINDOW__ #studio-terminal-footer { font-size: 12px; padding: 0px 0px; }
+/* END WEB APPEARANCE */

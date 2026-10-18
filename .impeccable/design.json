@@ -1,0 +1,528 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-18T20:32:36.587828+00:00",
+  "title": "Design System: Theme Studio — Impeccable B",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Primary",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.26 0 0)",
+          "oklch(0.38 0 0)",
+          "oklch(0.49 0 0)",
+          "oklch(0.61 0 0)",
+          "oklch(0.72 0 0)",
+          "oklch(0.84 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "primary-hover": {
+        "role": "primary",
+        "displayName": "Primary Hover",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.26 0 0)",
+          "oklch(0.38 0 0)",
+          "oklch(0.49 0 0)",
+          "oklch(0.61 0 0)",
+          "oklch(0.72 0 0)",
+          "oklch(0.84 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "selected": {
+        "role": "neutral",
+        "displayName": "Selected",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.26 0 0)",
+          "oklch(0.38 0 0)",
+          "oklch(0.49 0 0)",
+          "oklch(0.61 0 0)",
+          "oklch(0.72 0 0)",
+          "oklch(0.84 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "header": {
+        "role": "neutral",
+        "displayName": "Header",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.26 0 0)",
+          "oklch(0.38 0 0)",
+          "oklch(0.49 0 0)",
+          "oklch(0.61 0 0)",
+          "oklch(0.72 0 0)",
+          "oklch(0.84 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "ground": {
+        "role": "neutral",
+        "displayName": "Ground",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.26 0 0)",
+          "oklch(0.38 0 0)",
+          "oklch(0.49 0 0)",
+          "oklch(0.61 0 0)",
+          "oklch(0.72 0 0)",
+          "oklch(0.84 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Surface",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.26 0 0)",
+          "oklch(0.38 0 0)",
+          "oklch(0.49 0 0)",
+          "oklch(0.61 0 0)",
+          "oklch(0.72 0 0)",
+          "oklch(0.84 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "preview-surface": {
+        "role": "neutral",
+        "displayName": "Preview Surface",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.26 0 0)",
+          "oklch(0.38 0 0)",
+          "oklch(0.49 0 0)",
+          "oklch(0.61 0 0)",
+          "oklch(0.72 0 0)",
+          "oklch(0.84 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "elevated": {
+        "role": "neutral",
+        "displayName": "Elevated",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.26 0 0)",
+          "oklch(0.38 0 0)",
+          "oklch(0.49 0 0)",
+          "oklch(0.61 0 0)",
+          "oklch(0.72 0 0)",
+          "oklch(0.84 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "elevated-hover": {
+        "role": "neutral",
+        "displayName": "Elevated Hover",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.26 0 0)",
+          "oklch(0.38 0 0)",
+          "oklch(0.49 0 0)",
+          "oklch(0.61 0 0)",
+          "oklch(0.72 0 0)",
+          "oklch(0.84 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "inset": {
+        "role": "neutral",
+        "displayName": "Inset",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.26 0 0)",
+          "oklch(0.38 0 0)",
+          "oklch(0.49 0 0)",
+          "oklch(0.61 0 0)",
+          "oklch(0.72 0 0)",
+          "oklch(0.84 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Border",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.26 0 0)",
+          "oklch(0.38 0 0)",
+          "oklch(0.49 0 0)",
+          "oklch(0.61 0 0)",
+          "oklch(0.72 0 0)",
+          "oklch(0.84 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "border-soft": {
+        "role": "neutral",
+        "displayName": "Border Soft",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.26 0 0)",
+          "oklch(0.38 0 0)",
+          "oklch(0.49 0 0)",
+          "oklch(0.61 0 0)",
+          "oklch(0.72 0 0)",
+          "oklch(0.84 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "border-strong": {
+        "role": "neutral",
+        "displayName": "Border Strong",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.26 0 0)",
+          "oklch(0.38 0 0)",
+          "oklch(0.49 0 0)",
+          "oklch(0.61 0 0)",
+          "oklch(0.72 0 0)",
+          "oklch(0.84 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.26 0 0)",
+          "oklch(0.38 0 0)",
+          "oklch(0.49 0 0)",
+          "oklch(0.61 0 0)",
+          "oklch(0.72 0 0)",
+          "oklch(0.84 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "secondary-ink": {
+        "role": "neutral",
+        "displayName": "Secondary Ink",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.26 0 0)",
+          "oklch(0.38 0 0)",
+          "oklch(0.49 0 0)",
+          "oklch(0.61 0 0)",
+          "oklch(0.72 0 0)",
+          "oklch(0.84 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "muted-ink": {
+        "role": "neutral",
+        "displayName": "Muted Ink",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.26 0 0)",
+          "oklch(0.38 0 0)",
+          "oklch(0.49 0 0)",
+          "oklch(0.61 0 0)",
+          "oklch(0.72 0 0)",
+          "oklch(0.84 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "on-primary": {
+        "role": "neutral",
+        "displayName": "On Primary",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.26 0 0)",
+          "oklch(0.38 0 0)",
+          "oklch(0.49 0 0)",
+          "oklch(0.61 0 0)",
+          "oklch(0.72 0 0)",
+          "oklch(0.84 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "success": {
+        "role": "neutral",
+        "displayName": "Success",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.26 0 0)",
+          "oklch(0.38 0 0)",
+          "oklch(0.49 0 0)",
+          "oklch(0.61 0 0)",
+          "oklch(0.72 0 0)",
+          "oklch(0.84 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "danger": {
+        "role": "neutral",
+        "displayName": "Danger",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.26 0 0)",
+          "oklch(0.38 0 0)",
+          "oklch(0.49 0 0)",
+          "oklch(0.61 0 0)",
+          "oklch(0.72 0 0)",
+          "oklch(0.84 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "status-ink": {
+        "role": "neutral",
+        "displayName": "Status Ink",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.26 0 0)",
+          "oklch(0.38 0 0)",
+          "oklch(0.49 0 0)",
+          "oklch(0.61 0 0)",
+          "oklch(0.72 0 0)",
+          "oklch(0.84 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "text-selection": {
+        "role": "neutral",
+        "displayName": "Text Selection",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.26 0 0)",
+          "oklch(0.38 0 0)",
+          "oklch(0.49 0 0)",
+          "oklch(0.61 0 0)",
+          "oklch(0.72 0 0)",
+          "oklch(0.84 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "opaque-surface": {
+        "role": "neutral",
+        "displayName": "Opaque Surface",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.26 0 0)",
+          "oklch(0.38 0 0)",
+          "oklch(0.49 0 0)",
+          "oklch(0.61 0 0)",
+          "oklch(0.72 0 0)",
+          "oklch(0.84 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "playlist-track": {
+        "role": "neutral",
+        "displayName": "Playlist Track",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.26 0 0)",
+          "oklch(0.38 0 0)",
+          "oklch(0.49 0 0)",
+          "oklch(0.61 0 0)",
+          "oklch(0.72 0 0)",
+          "oklch(0.84 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "conversion-ink": {
+        "role": "neutral",
+        "displayName": "Conversion Ink",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.26 0 0)",
+          "oklch(0.38 0 0)",
+          "oklch(0.49 0 0)",
+          "oklch(0.61 0 0)",
+          "oklch(0.72 0 0)",
+          "oklch(0.84 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Specimen title",
+        "purpose": "Active theme name; 24px at mobile sizes."
+      },
+      "title": {
+        "displayName": "Inspector title",
+        "purpose": "Appearance section headings."
+      },
+      "body": {
+        "displayName": "Product body",
+        "purpose": "Base UI text; supporting copy uses 13px."
+      },
+      "label": {
+        "displayName": "Product label",
+        "purpose": "Tabs and metadata; weights vary by state."
+      },
+      "readout": {
+        "displayName": "Numeric readout",
+        "purpose": "Compact mono values."
+      },
+      "supporting": {
+        "displayName": "Supporting copy",
+        "purpose": "Inspector explanations and control labels."
+      },
+      "headline-mobile": {
+        "displayName": "Mobile specimen title",
+        "purpose": "Active theme name at widths up to 800px."
+      },
+      "brand-mobile": {
+        "displayName": "Mobile brand",
+        "purpose": "Compact header at widths up to 800px."
+      },
+      "metadata": {
+        "displayName": "Metadata",
+        "purpose": "Theme counts, connection status and narrow-screen labels."
+      }
+    },
+    "shadows": [
+      {
+        "name": "slider-thumb-ring",
+        "value": "0 0 0 1px #eeeeee",
+        "purpose": "Slider thumb affordance; panels and palette rows have no drop shadow."
+      }
+    ],
+    "motion": [
+      {
+        "name": "button-state",
+        "value": "background-color 160ms ease-out, border-color 160ms ease-out, color 160ms ease-out",
+        "purpose": "Scoped B button transitions; removed for reduced motion."
+      },
+      {
+        "name": "toggle-thumb",
+        "value": "transform .15s",
+        "purpose": "Inherited toggle-thumb movement; removed for reduced motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "compact-desktop",
+        "value": "1150px"
+      },
+      {
+        "name": "settings-first",
+        "value": "800px"
+      },
+      {
+        "name": "narrow-phone",
+        "value": "420px"
+      }
+    ],
+    "materials": {
+      "backdropFilter": "blur(24px)",
+      "scope": "Header, inspector and preview work area",
+      "opaqueFallback": {
+        "workAreas": "#171717",
+        "header": "#101010"
+      },
+      "groundIllumination": "radial-gradient(ellipse at 92% 0%, #ffffff13, transparent 52%), radial-gradient(ellipse at 0% 85%, #ffffff08, transparent 46%)"
+    }
+  },
+  "components": [
+    {
+      "name": "Primary action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Compact explicit action; save-look version is full-width and at least 40px tall.",
+      "html": "<button class=\"ds-primary\">Save</button>",
+      "css": ".ds-primary{font-family:'Hanken Grotesk',system-ui,sans-serif;font-size:12px;font-weight:600;min-height:36px;padding:8px 12px;border:1px solid #eeeeee;border-radius:7px;cursor:pointer;transition:background-color 160ms ease-out,border-color 160ms ease-out,color 160ms ease-out;background:#eeeeee;color:#111111}.ds-primary:hover:not(:disabled){background:#ffffff}.ds-primary:focus-visible{outline:2px solid #eeeeee;outline-offset:4px;}.ds-primary:disabled{opacity:.5;cursor:not-allowed}@media(prefers-reduced-motion:reduce){[class^=\"ds-\"]{transition:none!important}}"
+    },
+    {
+      "name": "Secondary action",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Dark inset bordered alternative action.",
+      "html": "<button class=\"ds-secondary\">Cancel</button>",
+      "css": ".ds-secondary{font-family:'Hanken Grotesk',system-ui,sans-serif;font-size:12px;font-weight:600;min-height:36px;padding:8px 12px;border:1px solid #eeeeee;border-radius:7px;cursor:pointer;transition:background-color 160ms ease-out,border-color 160ms ease-out,color 160ms ease-out;background:#151515;color:#f5f5f5;border-color:#ffffff24}.ds-secondary:hover:not(:disabled){background:#ffffff12;border-color:#777777}.ds-secondary:focus-visible{outline:2px solid #eeeeee;outline-offset:4px;}.ds-secondary:disabled{opacity:.5;cursor:not-allowed}@media(prefers-reduced-motion:reduce){[class^=\"ds-\"]{transition:none!important}}"
+    },
+    {
+      "name": "Text field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Representative standard text field; placeholder and focus follow the shared primitive.",
+      "html": "<input class=\"ds-field\" aria-label=\"Background path\" placeholder=\"Background path\">",
+      "css": ".ds-field{font-family:'Hanken Grotesk',system-ui,sans-serif;font-size:13px;min-height:40px;max-width:100%;padding:10px 12px;border:1px solid #777777;border-radius:6px;background:#151515;color:#f5f5f5}.ds-field::placeholder{color:#a4a4a4}.ds-field:focus-visible{outline:2px solid #eeeeee;outline-offset:2px}.ds-field:disabled{opacity:.5;cursor:not-allowed}@media(prefers-reduced-motion:reduce){[class^=\"ds-\"]{transition:none!important}}"
+    },
+    {
+      "name": "Appearance tabs",
+      "kind": "nav",
+      "description": "Labeled category navigation with active bottom rule.",
+      "html": "<nav class=\"ds-tabs\" aria-label=\"Appearance categories\"><button aria-current=\"page\">Themes</button><button>Type</button><button>Glass</button><button>Background</button></nav>",
+      "css": ".ds-tabs{display:grid;grid-template-columns:.9fr .75fr .8fr 1.35fr;gap:4px;padding:0 16px;border-bottom:1px solid #ffffff24;background:rgba(25,25,25,.76)}.ds-tabs button{font-family:'Hanken Grotesk',system-ui,sans-serif;font-size:12px;padding:18px 0 16px;border:0;border-bottom:2px solid transparent;background:transparent;color:#b8b8b8;cursor:pointer;transition:background-color 160ms ease-out,border-color 160ms ease-out,color 160ms ease-out;}.ds-tabs button:hover{background:#ffffff08;color:#ffffff}.ds-tabs button[aria-current=\"page\"]{font-weight:600;color:#ffffff;border-bottom-color:#eeeeee}.ds-tabs button:focus-visible{outline:2px solid #eeeeee;outline-offset:4px;}@media(prefers-reduced-motion:reduce){[class^=\"ds-\"]{transition:none!important}}"
+    },
+    {
+      "name": "Selected palette row",
+      "kind": "card",
+      "refersTo": "theme-row",
+      "description": "A palette-button specimen with selected identity; Tokyo Night values are example content.",
+      "html": "<button class=\"ds-row\" aria-pressed=\"true\"><span>Tokyo Night <svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m5 12 4 4L19 6\"/></svg></span><span class=\"ds-ribbon\" aria-hidden=\"true\"><i style=\"background:#1a1b26\"></i><i style=\"background:#f7768e\"></i><i style=\"background:#9ece6a\"></i><i style=\"background:#e0af68\"></i><i style=\"background:#7aa2f7\"></i><i style=\"background:#bb9af7\"></i><i style=\"background:#7dcfff\"></i><i style=\"background:#c0caf5\"></i></span></button>",
+      "css": ".ds-row{font-family:'Hanken Grotesk',system-ui,sans-serif;display:grid;grid-template-columns:minmax(0,1fr) 100px;align-items:center;gap:6px;min-height:44px;padding:8px 12px;border:1px solid #ffffff40;border-radius:6px;background:#ffffff12;color:#f5f5f5;font-size:12px;text-align:left;cursor:pointer;transition:background-color 160ms ease-out,border-color 160ms ease-out,color 160ms ease-out;}.ds-row>span:first-child{font-weight:500;display:flex;align-items:center;gap:6px}.ds-row svg{color:#eeeeee}.ds-row:hover{background:#ffffff0a;border-color:#ffffff24}.ds-row:focus-visible{outline:2px solid #eeeeee;outline-offset:4px;}.ds-ribbon{display:flex;height:16px;border-radius:3px;overflow:hidden}.ds-ribbon i{flex:1}@media(prefers-reduced-motion:reduce){[class^=\"ds-\"]{transition:none!important}}"
+    },
+    {
+      "name": "Saved-look count",
+      "kind": "chip",
+      "refersTo": "count-badge",
+      "description": "Noninteractive saved collection count.",
+      "html": "<span class=\"ds-count\">3</span>",
+      "css": ".ds-count{font-family:'Hanken Grotesk',system-ui,sans-serif;font-size:11px;border-radius:5px;padding:1px 7px;background:#ffffff0d;color:#b8b8b8}@media(prefers-reduced-motion:reduce){[class^=\"ds-\"]{transition:none!important}}"
+    },
+    {
+      "name": "Saved-look action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Full-width save action with the shipped vector icon.",
+      "html": "<button class=\"ds-save\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 5v14M5 12h14\"/></svg>Save current look</button>",
+      "css": ".ds-save{font-family:'Hanken Grotesk',system-ui,sans-serif;font-size:12px;font-weight:600;min-height:36px;padding:8px 12px;border:1px solid #eeeeee;border-radius:7px;cursor:pointer;transition:background-color 160ms ease-out,border-color 160ms ease-out,color 160ms ease-out;display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:40px;background:#eeeeee;color:#111111}.ds-save:hover:not(:disabled){background:#ffffff}.ds-save:focus-visible{outline:2px solid #eeeeee;outline-offset:4px;}.ds-save:disabled{opacity:.5;cursor:not-allowed}@media(prefers-reduced-motion:reduce){[class^=\"ds-\"]{transition:none!important}}"
+    },
+    {
+      "name": "Glass work area",
+      "kind": "card",
+      "refersTo": "glass-inspector",
+      "description": "Inspector material with source blur, boundary and opaque fallback.",
+      "html": "<section class=\"ds-glass\">Appearance settings</section>",
+      "css": ".ds-glass{font:14px/1.5 \"Hanken Grotesk\",system-ui,sans-serif;padding:24px;background:rgba(25,25,25,.76);color:#f5f5f5;border:1px solid #ffffff24;border-radius:18px;backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px)}@supports not(backdrop-filter:blur(1px)){.ds-glass{background:#171717}}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Monochrome Glass Workspace",
+    "overview": "The user-selected B design is a dark, black-and-white glass workspace. Translucent neutral panels, thin white boundaries and compact readable controls frame the terminal; authentic palette colors and user media remain expressive content. This explicit direction supersedes the earlier light archive expression.\n\nThis system applies only to Impeccable B. The original frontend-design A remains an independent dark slate and mint baseline. Sources are `src/impeccable.css`, shared primitives in `src/index.css`, and the unchanged component structure in `src/components/ImpeccableStudio.tsx`. The main interface has no comparison toolbar; shared loading/error screens and native terminal styling are outside this system.",
+    "keyCharacteristics": [
+      "Dark monochrome chrome with real colored terminal content.",
+      "Translucent glass work areas with restrained neutral illumination.",
+      "Settings left and terminal preview right; settings first on mobile."
+    ],
+    "rules": [
+      {
+        "name": "The Specimen Boundary Rule",
+        "body": "Keep Web UI chrome achromatic; retain the true colors of terminal schemes, swatches and user media.",
+        "section": "colors"
+      },
+      {
+        "name": "The Product Type Rule",
+        "body": "Use Hanken Grotesk for product UI; keep terminal font choice inside the preview and numeric readouts in the mono stack.",
+        "section": "typography"
+      },
+      {
+        "name": "The Glass Boundary Rule",
+        "body": "Apply backdrop blur to the header and two work areas; preserve opaque fallbacks and legible controls.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do scope this system to B and retain A as an independent visual baseline.",
+      "Do preserve the ordered background, red, green, yellow, blue, purple, cyan, foreground specimen ribbon.",
+      "Do use labeled native controls and visible keyboard focus for product interactions.",
+      "Do respect reduced motion and preserve textual saving, failure and connection states."
+    ],
+    "donts": [
+      "Don't introduce chromatic accents into the Web UI chrome.",
+      "Don't desaturate terminal palettes, swatches or user media to match the chrome.",
+      "Don't apply B’s scoped tokens to A or change terminal preferences when switching designs.",
+      "Don't reuse carried glyph icons as a pattern for new product controls."
+    ]
+  }
+}

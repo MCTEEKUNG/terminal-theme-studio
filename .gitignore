@@ -3,3 +3,13 @@ dist/
 .superpowers/
 themes.json
 .playlist-cache/
+wt-settings.json
+.ptyxis-backup/
+.native-runtime/
+.desktop-integration-backup/
+__pycache__/
+playlist.json
+.impeccable/review/
+.server.pid
+.ui.err.log
+.ui.out.log

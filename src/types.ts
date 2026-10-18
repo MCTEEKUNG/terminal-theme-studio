@@ -1,3 +1,4 @@
+import type { AppearanceNumbers } from './lib/appearance'
 export interface ColorScheme {
   name: string
   background: string
@@ -28,7 +29,17 @@ export interface FontSettings {
   weight: 'normal' | 'bold' | 'thin' | 'light' | 'semi-light' | 'semi-bold' | 'extra-light' | 'extra-bold'
 }
 
-export interface ProfileDefaults {
+export interface TerminalConnection {
+  backend: 'ptyxis' | 'windows-terminal'
+  state: 'idle' | 'syncing' | 'connected' | 'error'
+  profile?: string
+  error?: string
+}
+
+export interface ProfileDefaults extends AppearanceNumbers {
+  tabAccentColor?: string
+  chromeHoverColor?: string
+  closeButtonAlignment?: 'start' | 'center' | 'end'
   opacity?: number
   useAcrylic?: boolean
   unfocusedAppearance?: { opacity: number }
@@ -36,6 +47,15 @@ export interface ProfileDefaults {
   font?: FontSettings
   backgroundImage?: string | null
   backgroundImageOpacity?: number
+  backgroundImageBlur?: number
+  glassBlur?: number
+  backgroundFrameRate?: number
+  tabCornerRadius?: number
+  closeButtonSize?: number
+  closeButtonShape?: 'circle' | 'rounded' | 'square'
+  headerHeight?: number
+  tabSpacing?: number
+  showStatusBar?: boolean
   adjustIndistinguishableColors?: 'always' | 'indexed' | 'never'
   backgroundImageStretchMode?: 'none' | 'fill' | 'uniform' | 'uniformToFill'
   backgroundImageAlignment?: 'center' | 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | 'top' | 'bottom' | 'left' | 'right'
@@ -69,7 +89,7 @@ export interface PlaylistItem {
   sourcePath: string
   gifPath: string | null
   status: PlaylistItemStatus
-  error?: string
+  error?: string | null
   durationSec: number
 }
 
@@ -79,5 +99,6 @@ export interface PlaylistConfig {
   isPlaying: boolean
   currentIndex: number
   defaultDurationSec: number
+  durationMode: 'fixed' | 'full-video'
   playbackMode: PlaylistPlaybackMode
 }

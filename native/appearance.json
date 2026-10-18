@@ -1,0 +1,8 @@
+{
+  "closeButton": {
+    "size": 24,
+    "shape": "circle",
+    "valign": "center",
+    "halign": "center"
+  }
+}

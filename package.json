@@ -5,6 +5,8 @@
     "dev": "concurrently -k \"bun server.ts\" \"vite\"",
     "server": "bun server.ts",
     "ui": "vite",
+    "terminal": "python3 native/launch.py",
+    "install:ubuntu": "python3 native/install.py --make-default",
     "build": "vite build"
   },
   "dependencies": {

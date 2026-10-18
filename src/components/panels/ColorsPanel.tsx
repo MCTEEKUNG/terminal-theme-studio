@@ -28,7 +28,7 @@ function ColorPicker({ label, value, onChange }: { label: string; value: string;
   return (
     <div className="color-row">
       <div className="color-swatch">
-        <input type="color" value={value || '#000000'} onChange={e => onChange(e.target.value)} />
+        <input type="color" aria-label={label} value={value || '#000000'} onChange={e => onChange(e.target.value)} />
       </div>
       <span className="color-name">{label}</span>
     </div>

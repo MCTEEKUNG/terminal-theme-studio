@@ -1,0 +1,145 @@
+/* Dark Glass is the main application shell. */
+.impeccable-app {
+  --bg-base: #090909;
+  --bg-surface: rgba(25, 25, 25, 0.76);
+  --bg-elevated: #242424;
+  --bg-elevated-hover: #303030;
+  --bg-inset: #151515;
+  --border: #ffffff24;
+  --border-soft: #ffffff14;
+  --border-strong: #777777;
+  --text-primary: #f5f5f5;
+  --text-secondary: #b8b8b8;
+  --text-dim: #a4a4a4;
+  --amber: #eeeeee;
+  --amber-bright: #ffffff;
+  --amber-deep: #cccccc;
+  --on-amber: #111111;
+  --success: #d4d4d4;
+  --danger: #eeeeee;
+  --radius: 12px;
+  --radius-sm: 6px;
+  --im-header: rgba(14, 14, 14, 0.68);
+  --im-selected: #ffffff12;
+  --im-space-1: 4px;
+  --im-space-2: 8px;
+  --im-space-3: 12px;
+  --im-space-4: 16px;
+  --im-space-6: 24px;
+  --im-space-8: 32px;
+  color-scheme: dark;
+  color: var(--text-primary);
+  background: var(--bg-base);
+  background-image:
+    radial-gradient(ellipse at 92% 0%, #ffffff13, transparent 52%),
+    radial-gradient(ellipse at 0% 85%, #ffffff08, transparent 46%);
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 540px;
+  font-size: 14px;
+  caret-color: var(--amber);
+  scrollbar-color: #606060 transparent;
+  scrollbar-width: thin;
+}
+.impeccable-app * { scrollbar-width: thin; scrollbar-color: #606060 transparent; }
+.impeccable-app ::selection { background: #dddddd; color: #111111; }
+.impeccable-app h1, .impeccable-app h2, .impeccable-app h3 { letter-spacing: -.025em; }
+.im-studio-header { display: flex; align-items: center; gap: var(--im-space-6); min-height: 72px; padding: var(--im-space-4) var(--im-space-8); background: var(--im-header); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border-bottom: 1px solid var(--border); color: #f5f5f5; flex-shrink: 0; }
+.im-brand { display: flex; align-items: center; gap: var(--im-space-3); color: inherit; text-decoration: none; }
+.im-brand h1 { margin: 0; font-size: 20px; font-weight: 600; line-height: 1.4; }
+.im-header-divider { width: 1px; height: 24px; background: #ffffff24; }
+.im-header-description { color: #bcbcbc; font-size: 13px; }
+.im-save-state { margin-left: auto; display: flex; align-items: center; gap: 6px; color: #bcbcbc; font-size: 12px; }
+.im-save-state.error { color: #ffffff; border: 1px dashed #888888; border-radius: 6px; padding: 6px 10px; }.im-save-state.error svg { display: none; }
+.im-workspace { display: grid; grid-template-columns: 384px minmax(0, 1fr); grid-template-areas: 'inspector preview'; gap: 24px; padding: 24px; min-height: 0; flex: 1; }
+.im-inspector { grid-area: inspector; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 18px; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); overflow: hidden; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+.im-tabs { display: grid; grid-template-columns: .9fr .75fr .8fr 1.35fr; padding: 0 var(--im-space-4); gap: var(--im-space-1); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.im-tabs button { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 18px 0 16px; font-size: 12px; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); background: transparent; }
+.im-tabs button svg { width: 16px; }
+.im-tabs button:hover { color: var(--amber-bright); background: #ffffff08; }
+.im-tabs button[aria-current="page"] { border-bottom-color: var(--amber); color: var(--amber-bright); font-weight: 600; }
+.im-inspector-scroll { overflow-y: auto; padding: var(--im-space-6); min-height: 0; }
+.im-controls .panel-title { font-size: 20px; font-weight: 600; margin-bottom: var(--im-space-2); }
+.im-controls .panel-subtitle { font-size: 13px; line-height: 1.6; margin-bottom: var(--im-space-6); max-width: none; }
+.impeccable-app .current-theme { display: none; background: transparent; border: 0; border-bottom: 1px solid var(--border-soft); border-radius: 0; padding: 0 0 var(--im-space-4); margin-bottom: var(--im-space-4); font-size: 12px; }
+.impeccable-app .current-theme strong { font-weight: 600; }
+.impeccable-app .theme-search { background: var(--bg-surface); border-color: var(--border-strong); padding-left: var(--im-space-3); }
+.impeccable-app .theme-search input { padding: 10px 0; }
+.impeccable-app .theme-search > span { color: var(--text-secondary); }
+.impeccable-app .themes-count { font-size: 11px; padding: var(--im-space-3) 0; }
+.impeccable-app .themes-grid { display: flex; flex-direction: column; gap: var(--im-space-1); }
+.impeccable-app .theme-card { display: grid; grid-template-columns: minmax(0, 1fr) 100px; align-items: center; min-height: 44px; padding: var(--im-space-2) var(--im-space-3); border: 1px solid transparent; border-radius: 6px; background: transparent; box-shadow: none; transform: none; }
+.impeccable-app .theme-card:hover { background: #ffffff0a; border-color: var(--border); transform: none; }
+.impeccable-app .theme-card-active { background: var(--im-selected); border-color: #ffffff40; box-shadow: none; }
+.impeccable-app .theme-mini-terminal { display: none; }
+.impeccable-app .theme-swatch { grid-column: 2; grid-row: 1; height: 16px; border-radius: 3px; overflow: hidden; }
+.impeccable-app .theme-card-footer { grid-column: 1; grid-row: 1; padding: 0 var(--im-space-2) 0 0; justify-content: flex-start; gap: 6px; min-height: 28px; }
+.impeccable-app .theme-card-name { font-size: 12px; overflow-wrap: anywhere; }
+.impeccable-app .theme-card-check { display: flex; }
+.impeccable-app .theme-tip { display: none; }
+.impeccable-app .sidebar-themes { margin: var(--im-space-6) 0 0; padding-top: var(--im-space-6); border-top: 1px solid var(--border); max-width: none; }
+.impeccable-app .saved-heading { display: flex; margin-bottom: var(--im-space-3); }
+.impeccable-app .section-label { color: var(--text-primary); font-size: 13px; }
+.impeccable-app .saved-empty { display: block; font-size: 12px; line-height: 1.6; padding: 0 0 var(--im-space-3); }
+.impeccable-app .btn-save { display: flex; align-items: center; justify-content: center; gap: 8px; border-style: solid; background: var(--amber); color: var(--on-amber); border-color: var(--amber); margin-top: var(--im-space-2); min-height: 40px; }
+.impeccable-app .btn-save:hover:not(:disabled) { background: var(--amber-bright); }
+.impeccable-app .theme-item { background: #ffffff08; }.impeccable-app .theme-delete { display: grid; place-items: center; min-width: 44px; min-height: 44px; }
+.impeccable-app .save-theme-input { border-color: var(--border-strong); background: var(--bg-inset); }.impeccable-app .count-badge { background: #ffffff0d; color: var(--text-secondary); }
+.impeccable-app .btn-primary { background: var(--amber); color: var(--on-amber); }.impeccable-app .btn-primary:hover:not(:disabled) { background: var(--amber-bright); }
+.impeccable-app .btn-secondary { color: var(--text-primary); background: var(--bg-inset); border-color: var(--border); min-height: 36px; }
+.impeccable-app .btn-secondary:hover:not(:disabled) { background: var(--im-selected); border-color: var(--border-strong); }
+.impeccable-app .btn-secondary.danger { color: var(--danger); }
+.impeccable-app .control-label { font-size: 13px; }
+.impeccable-app .control-value { background: #ffffff0c; border: 0; color: var(--amber-bright); font-variant-numeric: tabular-nums; }
+.impeccable-app .control-group { margin-bottom: var(--im-space-6); padding-bottom: var(--im-space-6); }
+.impeccable-app .text-input, .impeccable-app .select-input { border-color: var(--border-strong); background: var(--bg-inset); min-height: 40px; }
+.impeccable-app .select-input option { background: #171717; color: var(--text-primary); }
+.impeccable-app .toggle input:checked + .toggle-track::after { background: #111111; }
+.impeccable-app .playlist-item { background: #151515; }.impeccable-app .playlist-item.current { background: var(--im-selected); }
+.impeccable-app .playlist-tab.active, .impeccable-app .playlist-mode-btn.active { color: var(--amber-bright); background: var(--im-selected); }
+.impeccable-app .playlist-tabs { background: #121212; }.impeccable-app .pl-ctrl-btn.primary { background: var(--amber); color: var(--on-amber); }
+.impeccable-app .convert-badge.converting { color: #dedede; }
+.im-preview-area { grid-area: preview; min-width: 0; overflow-y: auto; padding: var(--im-space-6) var(--im-space-8); display: flex; flex-direction: column; background: rgba(18, 18, 18, 0.52); border: 1px solid var(--border); border-radius: 18px; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
+.im-preview-toolbar { display: flex; justify-content: space-between; align-items: center; gap: var(--im-space-4); color: var(--text-secondary); font-size: 12px; }
+.im-preview-toolbar > span:first-child { font-weight: 600; color: var(--text-primary); }
+.im-connection { display: flex; align-items: center; gap: 6px; font-size: 11px; }.im-connection i { width: 5px; height: 5px; border-radius: 50%; background: #bcbcbc; }.im-connection.failed { color: var(--danger); }.im-connection.failed i { background: var(--danger); }
+.impeccable-app .terminal-preview { display: flex; flex-direction: column; flex: 1; min-height: 500px; }
+.impeccable-app .preview-label { display: none; }
+.impeccable-app .preview-heading { margin: var(--im-space-8) 0 var(--im-space-6); }
+.impeccable-app .preview-heading h3 { font-size: 28px; line-height: 1.3; font-weight: 500; }
+.impeccable-app .screen { height: auto; flex: 1; min-height: 340px; max-height: 600px; border: 0; padding: 0; background: none; border-radius: 12px; overflow: hidden; }
+.impeccable-app .wt-window { border-radius: 12px; border: 0; box-shadow: none; color-scheme: dark; }
+.impeccable-app .wt-titlebar { height: 44px; padding-left: var(--im-space-3); }
+.impeccable-app .wt-tab { padding: 10px 16px; font-size: 12px; }.impeccable-app .wt-body { padding: var(--im-space-6); }
+.impeccable-app .preview-settings { padding: var(--im-space-4) 0; gap: var(--im-space-4); font-size: 12px; }
+.impeccable-app .preview-palette { width: 160px; gap: 0; height: 12px; border-radius: 3px; overflow: hidden; }
+.impeccable-app .preview-palette i { flex: 1; height: 12px; border-radius: 0; }
+.impeccable-app .preview-note { color: var(--text-secondary); font-size: 12px; }
+.im-terminal-details { margin-top: var(--im-space-6); border-top: 1px solid var(--border); padding-top: var(--im-space-4); font-size: 12px; }
+.im-terminal-details summary { cursor: pointer; color: var(--text-primary); font-weight: 500; }
+.im-terminal-details .terminal-connection { padding: var(--im-space-4) 0; }.im-integration-note { color: var(--text-secondary); max-width: 65ch; font-size: 12px; }
+.im-preview-jump { display: none; color: var(--amber-bright); font-size: 12px; text-underline-offset: 4px; }
+.impeccable-app button { transition: background-color 160ms ease-out, border-color 160ms ease-out, color 160ms ease-out; }
+.impeccable-app :focus-visible { outline-color: var(--amber); }
+@media (max-width: 1150px) { .im-workspace { grid-template-columns: 352px minmax(0, 1fr); gap: 20px; padding: 20px; }.im-preview-area { padding: 24px; }.im-inspector-scroll { padding: 20px; }.im-tabs { padding: 0 12px; }.im-tabs button { gap: 4px; }.impeccable-app .theme-card { grid-template-columns: minmax(0, 1fr) 88px; }.impeccable-app .preview-palette { width: 120px; } }
+@media (max-width: 800px) {
+  .impeccable-app { height: auto; min-height: 100dvh; }.im-studio-header { flex-wrap: wrap; padding: 20px; gap: 12px; }.im-brand h1 { font-size: 18px; }.im-header-divider, .im-header-description { display: none; }.im-save-state { font-size: 11px; }
+  .im-workspace { display: flex; flex-direction: column; min-height: auto; gap: 16px; padding: 16px; }.im-inspector { order: 0; }.im-inspector-scroll { overflow: visible; padding: 20px; }.im-tabs { padding: 0 16px; }.im-tabs button { min-height: 56px; gap: 8px; }.im-preview-area { order: 1; overflow: visible; padding: 24px 20px; }
+  .im-preview-jump { display: flex; align-items: center; gap: 6px; margin-bottom: 20px; }.im-preview-area > .im-preview-jump { margin: 20px 0 0; }
+  .impeccable-app .terminal-preview { min-height: 420px; }.impeccable-app .screen { min-height: 320px; height: 380px; max-height: 500px; }.impeccable-app .preview-heading { margin: 24px 0 20px; }.impeccable-app .preview-heading h3 { font-size: 24px; }.impeccable-app .sidebar-themes { margin-top: 24px; padding-top: 24px; }.impeccable-app .theme-card { grid-template-columns: minmax(0,1fr) 132px; }.impeccable-app .theme-card-name { font-size: 13px; }.impeccable-app .theme-swatch { height: 18px; }
+  #im-settings, #im-preview { scroll-margin-top: 16px; }
+}
+@media (max-width: 420px) { .im-studio-header { gap: 8px; }.im-save-state { width: 100%; margin-left: 0; }.im-tabs button { gap: 5px; font-size: 11px; }.impeccable-app .theme-card { grid-template-columns: minmax(0, 1fr) 100px; }.impeccable-app .preview-palette { width: 120px; margin-left: 0; }.impeccable-app .wt-body { padding: 16px; }.im-preview-toolbar { align-items: flex-start; flex-wrap: wrap; gap: 8px; } }
+@media (prefers-reduced-motion: reduce) { .impeccable-app * { transition: none !important; } }
+
+.impeccable-app .desktop-bg { background: #222222; }
+.impeccable-app .wt-statusbar { position: relative; z-index: 1; flex-shrink: 0; }
+
+/* Opaque fallback keeps the same contrast when backdrop filtering is unavailable. */
+@supports not (backdrop-filter: blur(1px)) {
+  .im-inspector, .im-preview-area { background: #171717; }
+  .im-studio-header { background: #101010; }
+}
+
+.im-controls .themes-panel .panel-title { margin-bottom: 20px; }

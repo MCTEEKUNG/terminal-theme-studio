@@ -3,9 +3,11 @@ import type { WTSettings, ProfileDefaults } from '../../types'
 import type { UsePlaylistReturn } from '../../hooks/usePlaylist'
 
 interface Props {
+  plain?: boolean
   settings: WTSettings
   onPatch: (body: { defaults: Partial<ProfileDefaults> }) => void
   playlist: UsePlaylistReturn
+  isPtyxis?: boolean
 }
 
 const VIDEO_RE = /\.(mp4|webm|ogg|mov|avi|mkv)$/i
@@ -18,18 +20,18 @@ function getMediaLabel(p: string): string {
   return ''
 }
 
-const STRETCH_MODES: ProfileDefaults['backgroundImageStretchMode'][] = [
+const STRETCH_MODES: NonNullable<ProfileDefaults['backgroundImageStretchMode']>[] = [
   'none', 'fill', 'uniform', 'uniformToFill'
 ]
 
-const ALIGNMENTS: ProfileDefaults['backgroundImageAlignment'][] = [
+const ALIGNMENTS: NonNullable<ProfileDefaults['backgroundImageAlignment']>[] = [
   'center', 'top', 'bottom', 'left', 'right',
   'topLeft', 'topRight', 'bottomLeft', 'bottomRight'
 ]
 
 type ConvertState = 'idle' | 'converting' | 'done' | 'error'
 
-export function BackgroundPanel({ settings, onPatch, playlist }: Props) {
+export function BackgroundPanel({ settings, onPatch, playlist, isPtyxis, plain }: Props) {
   const d = settings.profiles.defaults
   const bgImage = d.backgroundImage ?? ''
   const bgOpacity = d.backgroundImageOpacity ?? 1.0
@@ -117,17 +119,19 @@ export function BackgroundPanel({ settings, onPatch, playlist }: Props) {
 
   return (
     <div>
-      <div className="panel-title">Background</div>
+      <h2 className="panel-title">{plain ? 'Background' : 'Set the scene.'}</h2><p className="panel-subtitle">Choose a quiet backdrop or bring your terminal to life with a playlist.</p>
 
       {/* Mode toggle */}
       <div className="playlist-tabs">
         <button
+          aria-pressed={!isPlaylistMode}
           className={`playlist-tab${!isPlaylistMode ? ' active' : ''}`}
           onClick={() => patchConfig({ mode: 'single' })}
         >
           Single
         </button>
         <button
+          aria-pressed={isPlaylistMode}
           className={`playlist-tab${isPlaylistMode ? ' active' : ''}`}
           onClick={() => patchConfig({ mode: 'playlist' })}
         >
@@ -139,7 +143,7 @@ export function BackgroundPanel({ settings, onPatch, playlist }: Props) {
       {!isPlaylistMode && (
         <div className="control-group">
           <div className="control-label">
-            <span>File Path</span>
+            <label htmlFor="background-path">File path</label>
             {label && !isVideo && <span className="control-value">{label}</span>}
             {isVideo && convertState === 'converting' && (
               <span className="convert-badge converting">⟳ Converting…</span>
@@ -152,10 +156,10 @@ export function BackgroundPanel({ settings, onPatch, playlist }: Props) {
             )}
           </div>
           <input
-            className="text-input"
+            id="background-path" className="text-input"
             type="text"
             value={bgImage}
-            placeholder="C:\Users\ASUS\Pictures\wallpaper.png"
+            placeholder={isPtyxis ? '/home/you/Pictures/wallpaper.png' : 'C:/Users/you/Pictures/wallpaper.png'}
             onChange={e => onPatch({ defaults: { backgroundImage: e.target.value || null } })}
           />
           {convertState === 'error' && convertError && (
@@ -175,15 +179,15 @@ export function BackgroundPanel({ settings, onPatch, playlist }: Props) {
           {/* Import folder */}
           <div className="control-group">
             <div className="control-label">
-              <span>Folder Path</span>
+              <label htmlFor="playlist-folder">Folder path</label>
               <span className="control-value">{config.items.length} clips</span>
             </div>
             <div className="playlist-add-row">
               <input
-                className="text-input"
+                id="playlist-folder" className="text-input"
                 type="text"
                 value={folderPath}
-                placeholder={'C:\\path\\to\\media-folder'}
+                placeholder={isPtyxis ? '/home/you/Videos' : 'C:/Users/you/Videos'}
                 onChange={e => setFolderPath(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') handleImportFolder() }}
               />
@@ -237,6 +241,9 @@ export function BackgroundPanel({ settings, onPatch, playlist }: Props) {
                       ↻
                     </button>
                   )}
+                  {config.durationMode === 'full-video' && VIDEO_RE.test(item.sourcePath) ? (
+                    <span className="playlist-duration-label" title="Uses the full source video length">Full clip</span>
+                  ) : <>
                   <input
                     className="playlist-duration-input"
                     type="number"
@@ -246,6 +253,7 @@ export function BackgroundPanel({ settings, onPatch, playlist }: Props) {
                     title="Duration in seconds"
                   />
                   <span className="playlist-duration-label">s</span>
+                  </>}
                   <div className="playlist-item-btns">
                     <button
                       className="playlist-icon-btn"
@@ -310,29 +318,45 @@ export function BackgroundPanel({ settings, onPatch, playlist }: Props) {
             </div>
           )}
 
-          {/* Default duration */}
           <div className="control-group" style={{ marginTop: 8 }}>
+            <label className="control-label" htmlFor="playlist-duration-mode">Switch to next clip</label>
+            <select id="playlist-duration-mode" className="select-input"
+              value={config.durationMode ?? 'fixed'}
+              onChange={e => patchConfig({ durationMode: e.target.value as 'fixed' | 'full-video' })}>
+              <option value="fixed">After a set duration</option>
+              <option value="full-video">Play full video — then next clip</option>
+            </select>
+            <p className="panel-subtitle">{config.durationMode === 'full-video'
+              ? 'Video length is detected automatically. Images and GIFs use their set duration.'
+              : 'Each clip uses the duration set in the playlist.'}</p>
+          </div>
+
+          {/* Manual timing is only relevant in the fixed-duration mode. */}
+          {config.durationMode !== 'full-video' && <div className="control-group" style={{ marginTop: 8 }}>
             <div className="control-label">
               <span>Default Duration</span>
               <span className="control-value">{config.defaultDurationSec}s</span>
             </div>
             <input
-              type="range" className="slider" min={2} max={120} step={1}
+              aria-label="Default clip duration" type="range" className="slider" min={2} max={120} step={1}
               value={config.defaultDurationSec}
               onChange={e => patchConfig({ defaultDurationSec: Number(e.target.value) })}
             />
-          </div>
+          </div>}
         </>
       )}
 
       {/* Appearance — always visible */}
+      {isPtyxis && (
+        <p className="panel-subtitle">Frosted glass softens the desktop behind Terminal. Your video and text stay sharp.</p>
+      )}
       <div className="control-group">
         <div className="control-label">
           <span>Image Opacity</span>
           <span className="control-value">{Math.round(bgOpacity * 100)}%</span>
         </div>
         <input
-          type="range" className="slider" min={0} max={100} step={1}
+          aria-label="Background image opacity" type="range" className="slider" min={0} max={100} step={1}
           value={Math.round(bgOpacity * 100)}
           onChange={e => onPatch({ defaults: { backgroundImageOpacity: Number(e.target.value) / 100 } })}
         />
@@ -355,22 +379,22 @@ export function BackgroundPanel({ settings, onPatch, playlist }: Props) {
       <div className="control-group">
         <div className="control-label"><span>Stretch Mode</span></div>
         <select
-          className="select-input"
+          aria-label="Stretch mode" className="select-input"
           value={stretchMode}
           onChange={e => onPatch({ defaults: { backgroundImageStretchMode: e.target.value as ProfileDefaults['backgroundImageStretchMode'] } })}
         >
-          {STRETCH_MODES.map(m => <option key={m} value={m}>{m}</option>)}
+          {STRETCH_MODES.map(m => <option key={m} value={m}>{{ none: 'Original size', fill: 'Stretch to fill', uniform: 'Fit entire image', uniformToFill: 'Fill & crop' }[m]}</option>)}
         </select>
       </div>
 
       <div className="control-group">
         <div className="control-label"><span>Alignment</span></div>
         <select
-          className="select-input"
+          aria-label="Alignment" className="select-input"
           value={alignment}
           onChange={e => onPatch({ defaults: { backgroundImageAlignment: e.target.value as ProfileDefaults['backgroundImageAlignment'] } })}
         >
-          {ALIGNMENTS.map(a => <option key={a} value={a}>{a}</option>)}
+          {ALIGNMENTS.map(a => <option key={a} value={a}>{a.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase())}</option>)}
         </select>
       </div>
     </div>
