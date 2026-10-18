@@ -107,6 +107,49 @@ class NativeTerminalTest(unittest.TestCase):
             event.time = module.Gdk.CURRENT_TIME
             Gtk.main_do_event(event)
 
+    def test_middle_click_closes_target_tab_and_protects_running_jobs(self):
+        warnings.filterwarnings('ignore', category=DeprecationWarning)
+        Gst.init(None)
+        with tempfile.TemporaryDirectory() as directory:
+            window = module.StudioTerminal(argparse.Namespace(server='http://127.0.0.1:1',
+                status_file=str(Path(directory) / 'status.json')))
+            first = window.current_tab
+            idle = window.add_tab()
+            busy = window.add_tab(command=['/bin/sleep', '30'])
+
+            def middle_click(tab):
+                event = module.Gdk.Event.new(module.Gdk.EventType.BUTTON_PRESS)
+                event.window = tab.tab_button.get_window()
+                event.set_device(module.Gdk.Display.get_default().get_default_seat().get_pointer())
+                event.x = event.y = 5
+                event.button = 2
+                event.time = module.Gdk.CURRENT_TIME
+                Gtk.main_do_event(event)
+                pump(.1)
+
+            try:
+                pump(.4)
+                window.select_tab(first)
+                # Closing an inactive tab must not select it or disturb the shell.
+                middle_click(idle)
+                self.assertNotIn(idle, window.tabs)
+                self.assertEqual(window.current_tab, first)
+                prompts = []
+                window.confirm_close = lambda jobs, target: prompts.append((jobs, target)) or False
+                middle_click(busy)
+                self.assertEqual(prompts, [(['sleep'], 'tab')])
+                self.assertIn(busy, window.tabs)
+                self.assertEqual(window.current_tab, first)
+                window.confirm_close = lambda *_: True
+                middle_click(busy)
+                self.assertNotIn(busy, window.tabs)
+                self.assertEqual(window.current_tab, first)
+                middle_click(first)
+                self.assertTrue(window.closed)
+            finally:
+                window.destroy()
+                pump(.2)
+
     def test_close_button_is_independent_and_keeps_busy_job_protection(self):
         warnings.filterwarnings('ignore', category=DeprecationWarning)
         Gst.init(None)

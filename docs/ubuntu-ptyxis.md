@@ -35,7 +35,7 @@ journalctl --user -u terminal-theme-studio
 ```
 
 Each tab has its own PTY and shell. New tabs inherit the selected tab's current
-directory. Use **Ctrl+Shift+T** for a new tab, **Ctrl+Shift+W** to close it,
+directory. Use **Ctrl+Shift+T** for a new tab, **Ctrl+Shift+W** or a middle mouse click on a tab to close it,
 **Ctrl+PageUp/PageDown** or **Alt+1…9** to switch, **Ctrl+Shift+C/V** to copy/paste,
 and **F11** for fullscreen. Tabs can be reordered by dragging.
 

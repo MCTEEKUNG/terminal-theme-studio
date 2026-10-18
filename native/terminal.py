@@ -482,9 +482,10 @@ def close_button_layout(defaults, layout):
 
 class TabHeader(Gtk.EventBox):
     """A selectable tab surface, with an independently clickable close button."""
-    def __init__(self, activate):
+    def __init__(self, activate, close):
         super().__init__()
         self.activate = activate
+        self.close_tab = close
         self.set_visible_window(True)
         self.set_above_child(False)
         self.set_can_focus(True)
@@ -495,6 +496,9 @@ class TabHeader(Gtk.EventBox):
         self.connect('key-press-event', self.on_key)
 
     def on_press(self, widget, event):
+        if event.button == 2:
+            self.close_tab()
+            return True
         if event.button == 1:
             self.clicked()
             return True
@@ -598,10 +602,10 @@ class StudioTerminal(Gtk.ApplicationWindow):
         close = Gtk.Button.new_from_icon_name('window-close-symbolic', Gtk.IconSize.MENU)
         tab.close_button = close
         close.set_relief(Gtk.ReliefStyle.NONE)
-        close.set_tooltip_text('Close tab (Ctrl+Shift+W)')
+        close.set_tooltip_text('Close tab (Ctrl+Shift+W or middle-click tab)')
         close.connect('clicked', lambda *_: self.request_close_tab(tab))
         label_box.pack_end(close, False, False, 0)
-        tab.label_event = TabHeader(lambda: self.select_tab(tab))
+        tab.label_event = TabHeader(lambda: self.select_tab(tab), lambda: self.request_close_tab(tab))
         tab.label_event.set_can_focus(True)
         tab.label_event.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
         tab.label_event.add(label_box)
