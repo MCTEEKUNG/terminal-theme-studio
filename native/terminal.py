@@ -854,6 +854,16 @@ class StudioTerminal(Gtk.ApplicationWindow):
         modifiers = event.state & Gtk.accelerator_get_default_mod_mask()
         if modifiers == (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK):
             key = Gdk.keyval_to_lower(event.keyval)
+            shortcuts = (Gdk.KEY_t, Gdk.KEY_w, Gdk.KEY_c, Gdk.KEY_v)
+            if key not in shortcuts and event.hardware_keycode:
+                # Non-Latin layouts change keyval (e.g. Shift+C becomes ฉ in
+                # Thai). Resolve the same physical key through the available
+                # layout groups, preserving translated Latin shortcuts first.
+                keymap = Gdk.Keymap.get_for_display(self.get_display())
+                found, _, values = keymap.get_entries_for_keycode(event.hardware_keycode)
+                if found:
+                    key = next((Gdk.keyval_to_lower(value) for value in values
+                                if Gdk.keyval_to_lower(value) in shortcuts), key)
             if key == Gdk.KEY_t:
                 self.add_tab()
             elif key == Gdk.KEY_w:

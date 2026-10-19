@@ -29,6 +29,44 @@ def pump(seconds):
 
 
 class NativeTerminalTest(unittest.TestCase):
+    def test_copy_shortcut_works_with_english_and_thai_keyvals(self):
+        warnings.filterwarnings('ignore', category=DeprecationWarning)
+        Gst.init(None)
+        with tempfile.TemporaryDirectory() as directory:
+            window = module.StudioTerminal(argparse.Namespace(server='http://127.0.0.1:1',
+                status_file=str(Path(directory) / 'status.json')))
+            tab = window.current_tab
+            clipboard = Gtk.Clipboard.get(module.Gdk.SELECTION_CLIPBOARD)
+            try:
+                pump(.4)
+                tab.terminal.feed('\r\nCopy ทดสอบ 123\r\n'.encode())
+                pump(.1)
+                tab.terminal.select_all()
+                keymap = module.Gdk.Keymap.get_for_display(window.get_display())
+                found, entries = keymap.get_entries_for_keyval(module.Gdk.KEY_c)
+                self.assertTrue(found)
+                event = module.Gdk.Event.new(module.Gdk.EventType.KEY_PRESS)
+                event.window = tab.terminal.get_window()
+                event.hardware_keycode = entries[0].keycode
+                event.state = module.Gdk.ModifierType.CONTROL_MASK | module.Gdk.ModifierType.SHIFT_MASK
+                event.set_device(module.Gdk.Display.get_default().get_default_seat().get_keyboard())
+                for keyval in (module.Gdk.KEY_C, module.Gdk.unicode_to_keyval(ord('ฉ'))):
+                    with self.subTest(keyval=keyval):
+                        clipboard.set_text('before-copy', -1)
+                        event.keyval = keyval
+                        self.assertTrue(window.on_key(window, event))
+                        pump(.1)
+                        self.assertIn('Copy ทดสอบ 123', clipboard.wait_for_text())
+                # Ordinary Ctrl+C remains the shell interrupt, not clipboard copy.
+                event.state = module.Gdk.ModifierType.CONTROL_MASK
+                event.keyval = module.Gdk.KEY_c
+                clipboard.set_text('keep-clipboard', -1)
+                self.assertFalse(window.on_key(window, event))
+                self.assertEqual(clipboard.wait_for_text(), 'keep-clipboard')
+            finally:
+                window.destroy()
+                pump(.2)
+
     def test_full_video_advances_on_eos_and_repeat_one_restarts(self):
         warnings.filterwarnings('ignore', category=DeprecationWarning)
         Gst.init(None)
