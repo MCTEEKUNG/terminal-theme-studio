@@ -13,3 +13,8 @@ playlist.json
 .server.pid
 .ui.err.log
 .ui.out.log
+.windows-runtime/
+*.theme-studio.bak
+conversion-settings.json
+*.pre-collections.bak
+native/gif-worker/target/

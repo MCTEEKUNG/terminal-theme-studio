@@ -33,8 +33,14 @@ export function upsertScheme(settings: WTSettings, scheme: ColorScheme): WTSetti
 }
 
 export function getActiveScheme(settings: WTSettings): ColorScheme | undefined {
-  const name = settings.profiles.defaults.colorScheme
+  const name = getSchemeName(settings)
   return settings.schemes.find(s => s.name === name)
+}
+
+export function getSchemeName(settings: WTSettings): string {
+  const scheme = settings.profiles.defaults.colorScheme
+  // The Studio preview uses the dark variant; the pair remains intact on disk.
+  return typeof scheme === 'string' ? scheme : scheme?.dark ?? scheme?.light ?? ''
 }
 
 export function isBuiltInScheme(name: string): boolean {

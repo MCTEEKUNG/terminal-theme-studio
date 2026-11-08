@@ -6,12 +6,12 @@ interface Props {
   onPatch: (body: { defaults: Partial<ProfileDefaults> }) => void
 }
 
-const WEIGHTS: FontSettings['weight'][] = [
+const WEIGHTS: Exclude<FontSettings['weight'], number>[] = [
   'thin', 'extra-light', 'light', 'semi-light', 'normal', 'semi-bold', 'bold', 'extra-bold'
 ]
 
 export function FontPanel({ settings, onPatch, plain }: Props) {
-  const font = settings.profiles.defaults.font ?? { face: 'Cascadia Code', size: 12, weight: 'normal' }
+  const font = { face: 'Cascadia Code', size: 12, weight: 'normal', ...settings.profiles.defaults.font } as FontSettings
 
   function patchFont(patch: Partial<FontSettings>) {
     onPatch({ defaults: { font: { ...font, ...patch } } })
@@ -52,8 +52,9 @@ export function FontPanel({ settings, onPatch, plain }: Props) {
         <select
           id="font-weight" className="select-input"
           value={font.weight}
-          onChange={e => patchFont({ weight: e.target.value as FontSettings['weight'] })}
+          onChange={e => patchFont({ weight: /^\d+$/.test(e.target.value) ? Number(e.target.value) : e.target.value as FontSettings['weight'] })}
         >
+          {typeof font.weight === 'number' && <option value={font.weight}>{font.weight} (custom)</option>}
           {WEIGHTS.map(w => (
             <option key={w} value={w}>{w.charAt(0).toUpperCase() + w.slice(1)}</option>
           ))}

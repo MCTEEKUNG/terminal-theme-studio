@@ -48,9 +48,12 @@ export function ImpeccableStudio({ settings, terminal, saveState, children, ...c
         <div className="im-preview-toolbar"><span>Terminal preview</span><span className={`im-connection ${terminal?.state === 'error' ? 'failed' : ''}`}><i />{terminal?.state === 'connected' ? (isPtyxis ? 'Ptyxis connected' : 'Windows Terminal connected') : terminal?.state === 'error' ? 'Connection error' : 'Connecting…'}</span></div>
         <TerminalPreview settings={settings} isPtyxis={isPtyxis} specimen />
         <a className="im-preview-jump" href="#im-settings">Back to appearance settings <StudioIcon name="arrow" size={15} /></a>
-        {isPtyxis && <details className="im-terminal-details"><summary>Use this look in your terminal</summary>
-          <NativeTerminalLauncher />
-          <p className="im-integration-note">{terminal?.error ?? 'Colors and opacity use the default Ptyxis profile. Font changes apply to all Ptyxis profiles.'}</p>
+        {terminal && <details className="im-terminal-details"><summary>Use this look in your terminal</summary>
+          <NativeTerminalLauncher windowsTerminal={!isPtyxis} />
+          <p className="im-integration-note">{terminal.error ?? (isPtyxis
+            ? 'Colors and opacity use the default Ptyxis profile. Font changes apply to all Ptyxis profiles.'
+            : 'Changes apply to profile defaults. Individual profile appearance settings take priority; reset those overrides in Windows Terminal to inherit this look.')}</p>
+          {terminal.settingsPath && <p className="im-integration-note">Settings: {terminal.settingsPath}</p>}
         </details>}
       </main>
     </div>

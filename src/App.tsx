@@ -13,9 +13,9 @@ import { usePlaylist } from './hooks/usePlaylist'
 export type ActivePanel = 'opacity' | 'themes' | 'font' | 'background'
 
 export default function App() {
-  const { settings, error, patch, refetch, saveState } = useSettings()
-  const { themes, save, apply, remove } = useThemes(refetch)
-  const playlist = usePlaylist()
+  const { session, settings, error, patch, request, saveState } = useSettings()
+  const { themes, save, apply, remove } = useThemes(request)
+  const playlist = usePlaylist(session?.playlist, request, session?.conversionSettings)
   const [activePanel, setActivePanel] = useState<ActivePanel>('themes')
   const [terminal, setTerminal] = useState<TerminalConnection | null>(null)
   useEffect(() => {
@@ -48,7 +48,7 @@ export default function App() {
     {activePanel === 'opacity' && <OpacityPanel plain settings={settings} onPatch={patch} isPtyxis={isPtyxis} />}
     {activePanel === 'themes' && <ThemesPanel plain settings={settings} onPatch={patch} isPtyxis={isPtyxis} />}
     {activePanel === 'font' && <FontPanel plain settings={settings} onPatch={patch} />}
-    {activePanel === 'background' && <BackgroundPanel plain settings={settings} onPatch={patch} playlist={playlist} isPtyxis={isPtyxis} />}
+    {activePanel === 'background' && session && <BackgroundPanel key={session.revision} plain settings={settings} onPatch={patch} playlist={playlist} isPtyxis={isPtyxis} request={request} conversionSettings={session.conversionSettings} />}
   </>
   return (
     <ImpeccableStudio settings={settings} terminal={terminal} saveState={saveState}

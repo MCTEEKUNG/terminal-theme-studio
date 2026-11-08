@@ -1,6 +1,6 @@
 # Terminal Theme Studio
 
-A local web control panel for terminal themes, fonts, transparency, and animated backgrounds. On Ubuntu, Studio Terminal provides a native GTK/VTE terminal with real shell sessions and live appearance updates.
+A local web control panel for terminal themes, fonts, transparency, and animated backgrounds. On Windows 11 it controls Windows Terminal. On Ubuntu, Studio Terminal provides a native GTK/VTE terminal with real shell sessions and live appearance updates.
 
 ![Theme Studio dark glass interface](docs/screenshots/dark-glass-main.jpg)
 
@@ -16,12 +16,54 @@ A local web control panel for terminal themes, fonts, transparency, and animated
 - **Ubuntu desktop integration:** application launcher, automatic controller startup, and optional default-terminal selection.
 - **Ptyxis integration** for colors, fonts, and opacity, plus Windows Terminal settings support.
 
+## Windows 11 quick start
+
+Install [Bun](https://bun.sh), Git, Windows Terminal, and [Rust](https://rustup.rs) (stable, with the Windows C++ build tools offered by the installer). Rust builds the small media worker; FFmpeg is needed for video preparation / full-video playlist timing:
+
+```powershell
+winget install --id Oven-sh.Bun -e
+winget install --id Git.Git -e
+winget install --id Microsoft.WindowsTerminal -e
+winget install --id Gyan.FFmpeg.Essentials -e
+winget install --id Rustlang.Rustup -e
+```
+
+Reopen PowerShell, then:
+
+```powershell
+git clone https://github.com/MCTEEKUNG/terminal-theme-studio.git
+cd terminal-theme-studio
+bun install
+.\start-windows.cmd
+```
+
+The launcher builds the UI and Rust worker on first use, starts a local controller and opens **http://127.0.0.1:5555/**. Open Windows Terminal and save its settings once before the first run. Stable, Preview and unpackaged settings locations are detected automatically (in that order).
+
+- Change themes, fonts, opacity, acrylic, image/GIF backgrounds and playlists from the browser.
+- File Explorer **Copy as path** works for files and folders, including paths with spaces or Thai characters.
+- In **Background**, enter a file path or load a playlist folder. **Default FPS** and width apply to all playlist videos; clips are prepared automatically and a progress indicator appears while they are being prepared. Previously prepared variants are reused. Defaults are 640px / 12 FPS. Single ↔ Playlist keeps the folder and clip list.
+- Windows Terminal uses prepared GIFs for video backgrounds. Ubuntu-only tab layout and GNOME blur controls are hidden on Windows.
+- JSON comments/trailing commas are supported. The original file is backed up to `settings.json.theme-studio.bak` before the first edit; unrelated profiles, shortcuts and settings are preserved.
+- Changes target `profiles.defaults`. A profile's own appearance overrides take priority; reset those overrides in Windows Terminal to inherit the Studio settings.
+
+Optional Start menu shortcut (current user, no administrator required):
+
+```powershell
+bun run install:windows
+# Include sign-in startup:
+bun run install:windows -- -AutoStart
+# Stop the controller:
+.\start-windows.cmd -Stop
+```
+
+See [Windows 11 setup and troubleshooting](docs/windows-11.md) for custom settings paths, portable installs, backups and removing shortcuts.
+
 ## Ubuntu quick start
 
-Run the application as your normal desktop user in a GNOME session. You need [Bun](https://bun.sh), Python 3, and these native dependencies:
+Run the application as your normal desktop user in a GNOME session. You need [Bun](https://bun.sh), [Rust stable](https://rustup.rs), Python 3, and these native dependencies:
 
 ```bash
-sudo apt install git ffmpeg python3-gi python3-gi-cairo \
+sudo apt install build-essential git ffmpeg python3-gi python3-gi-cairo \
   gir1.2-gtk-3.0 gir1.2-vte-2.91 gir1.2-gstreamer-1.0 \
   gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
   gstreamer1.0-libav desktop-file-utils xdg-terminal-exec
@@ -100,10 +142,12 @@ PORT=5555 bun run server
 ### Checks
 
 ```bash
-bun test
+bun run test
 bun run build
 ./node_modules/.bin/tsc --noEmit
 ```
+
+`bun run dev`, `bun run test`, and `bun run build` build the dependency-free Rust media worker when needed. To run `bun test` directly, run `bun run build:worker` first. FFmpeg and FFprobe must be on PATH for media tests. The worker runs FFmpeg in two bounded-memory passes; prepared variants are validated and reused by source identity, modification time, FPS, and width.
 
 Native integration tests also require `xvfb` and `dbus-run-session`:
 
@@ -127,7 +171,7 @@ Local settings and generated data are excluded from Git:
 | `.native-runtime/` | Native status and logs |
 | `.desktop-integration-backup/`, `.ptyxis-backup/` | Original desktop and Ptyxis preferences |
 
-On Windows, the backend uses Windows Terminal's standard settings location when `LOCALAPPDATA` is available. Set `WT_SETTINGS_PATH` to use a specific settings file. The native GTK/VTE terminal and Ubuntu installer are Linux features; Ptyxis itself does not support video backgrounds.
+On Windows, the backend detects existing Stable, Preview and unpackaged Windows Terminal settings. Set `WT_SETTINGS_PATH` to use a specific existing settings file (including portable installs). The native GTK/VTE terminal and Ubuntu installer are Linux features; Ptyxis itself does not support video backgrounds.
 
 Inspect the installed controller:
 

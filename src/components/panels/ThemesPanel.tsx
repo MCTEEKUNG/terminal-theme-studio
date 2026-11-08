@@ -1,6 +1,7 @@
 import { ColorsPanel } from './ColorsPanel'
 import { StudioIcon } from '../StudioIcon'
 import { useState } from 'react'
+import { getSchemeName } from '../../lib/settings'
 import additionalThemes from '../../data/additionalThemes.json'
 import type { WTSettings, ColorScheme, ProfileDefaults } from '../../types'
 
@@ -167,7 +168,7 @@ function ThemeCard({
 export function ThemesPanel({ settings, onPatch, plain }: Props) {
   const [query, setQuery] = useState('')
   const filtered = PRESET_THEMES.filter(theme => theme.name.toLowerCase().includes(query.trim().toLowerCase()))
-  const currentScheme = settings.profiles.defaults.colorScheme ?? ''
+  const currentScheme = getSchemeName(settings)
 
   function applyTheme(theme: ColorScheme) {
     onPatch({ scheme: theme, defaults: { colorScheme: theme.name } })

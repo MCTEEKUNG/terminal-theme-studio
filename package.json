@@ -2,14 +2,20 @@
   "name": "terminal-theme-studio",
   "version": "1.0.0",
   "scripts": {
-    "dev": "concurrently -k \"bun server.ts\" \"vite\"",
-    "server": "bun server.ts",
+    "dev": "bun run build:worker && concurrently -k \"bun server.ts\" \"vite\"",
+    "server": "bun run build:worker && bun server.ts",
     "ui": "vite",
     "terminal": "python3 native/launch.py",
     "install:ubuntu": "python3 native/install.py --make-default",
-    "build": "vite build"
+    "start:windows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/start-windows.ps1",
+    "install:windows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/install-windows.ps1",
+    "test": "bun run build:worker && bun test",
+    "typecheck": "tsc --noEmit",
+    "build": "bun run build:worker && vite build",
+    "build:worker": "bun scripts/build-gif-worker.ts"
   },
   "dependencies": {
+    "jsonc-parser": "^3.3.1",
     "react": "^18.3.0",
     "react-dom": "^18.3.0"
   },

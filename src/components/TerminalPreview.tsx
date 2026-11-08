@@ -22,18 +22,19 @@ function alignmentToCss(a: string | undefined): string {
   return map[a ?? ''] ?? (a ?? 'center')
 }
 
-function PreviewMedia({ path, opacity, size, alignment }: { path: string; opacity: number; size: string; alignment: string }) {
+function PreviewMedia({ path, opacity, size, alignment, isPtyxis }: { path: string; opacity: number; size: string; alignment: string; isPtyxis?: boolean }) {
   const [source, setSource] = useState<{ input: string; path: string } | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   useEffect(() => {
+    if (!isPtyxis) return
     const controller = new AbortController()
     fetch(`/api/preview/source?path=${encodeURIComponent(path)}`, { signal: controller.signal })
       .then(response => { if (!response.ok) throw new Error('Preview unavailable'); return response.json() })
       .then(result => { if (!controller.signal.aborted) setSource({ input: path, path: result.path }) })
       .catch(() => { /* Avoid decoding a large generated GIF when the controller is offline. */ })
     return () => controller.abort()
-  }, [path])
-  const resolved = source?.input === path ? source.path : null
+  }, [path, isPtyxis])
+  const resolved = isPtyxis ? (source?.input === path ? source.path : null) : path
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
@@ -52,7 +53,7 @@ function PreviewMedia({ path, opacity, size, alignment }: { path: string; opacit
   if (isVideo(resolved)) return <video ref={videoRef} className="wt-bg-media" src={fileUrl(resolved)} muted loop playsInline
     preload="metadata" aria-hidden="true" style={{ opacity, objectPosition: alignment,
       objectFit: size === '100% 100%' ? 'fill' : size === 'auto' ? 'none' : size === 'cover' ? 'cover' : 'contain' }} />
-  return <div className="wt-bg-media" style={{ backgroundImage: `url('${fileUrl(resolved)}')`, backgroundSize: size,
+  return <div className="wt-bg-media" style={{ backgroundImage: `url(${JSON.stringify(fileUrl(resolved))})`, backgroundSize: size,
     backgroundPosition: alignment, backgroundRepeat: 'no-repeat', opacity }} />
 }
 
@@ -66,7 +67,7 @@ function TerminalPreviewInner({ settings, isPtyxis, specimen }: Props) {
     '--preview-button-hover': tint(hoverColor, appearance.buttonHoverOpacity) } as CSSProperties
 
   const view = useMemo(() => {
-    const font = d.font ?? { face: 'Cascadia Code', size: 12 }
+    const font = { face: 'Cascadia Code', size: 12, ...d.font }
     const opacity = (d.opacity ?? 100) / 100
     const bgImage = d.backgroundImage || null
     const bgImageOpacity = d.backgroundImageOpacity ?? 1
@@ -90,6 +91,7 @@ function TerminalPreviewInner({ settings, isPtyxis, specimen }: Props) {
       d.backgroundImageStretchMode === 'fill' ? '100% 100%'
       : d.backgroundImageStretchMode === 'uniform' ? 'contain'
       : d.backgroundImageStretchMode === 'none' ? 'auto'
+      : d.backgroundImageStretchMode === 'uniformToFill' ? 'cover'
       : 'contain'
 
     const alignment = alignmentToCss(d.backgroundImageAlignment)
@@ -100,7 +102,7 @@ function TerminalPreviewInner({ settings, isPtyxis, specimen }: Props) {
       color: fg,
       fontFamily,
       fontSize: `${fontSize * 4 / 3}px`,
-      fontWeight: d.font?.weight?.includes('bold') ? (d.font.weight === 'semi-bold' ? 600 : d.font.weight === 'extra-bold' ? 800 : 700) : d.font?.weight === 'thin' ? 100 : d.font?.weight?.includes('light') ? 300 : 400,
+      fontWeight: typeof d.font?.weight === 'number' ? d.font.weight : d.font?.weight?.includes('bold') ? (d.font.weight === 'semi-bold' ? 600 : d.font.weight === 'extra-bold' ? 800 : 700) : d.font?.weight === 'thin' ? 100 : d.font?.weight?.includes('light') ? 300 : 400,
       opacity: isPtyxis ? 1 : opacity,
       position: 'relative',
       ...(isPtyxis ? { padding: appearanceNumbers(d).terminalPadding + 12, lineHeight: 1.2 } : {}),
@@ -152,7 +154,7 @@ function TerminalPreviewInner({ settings, isPtyxis, specimen }: Props) {
         </div>
 
         <div className="wt-body" style={bodyStyle}>
-          {bgImage && <PreviewMedia path={bgImage} opacity={bgImageOpacity} size={stretchSize} alignment={alignment} />}
+          {bgImage && <PreviewMedia path={bgImage} opacity={bgImageOpacity} size={stretchSize} alignment={alignment} isPtyxis={isPtyxis} />}
 
           <div className="wt-content">
             <div className="tl" style={{ color: brightBlack }}>{isPtyxis ? 'Ubuntu' : 'Windows PowerShell'}</div>

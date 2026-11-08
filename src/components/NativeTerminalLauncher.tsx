@@ -9,12 +9,13 @@ interface NativeStatus {
   performanceLive?: boolean
 }
 
-export function NativeTerminalLauncher() {
+export function NativeTerminalLauncher({ windowsTerminal = false }: { windowsTerminal?: boolean }) {
   const [status, setStatus] = useState<NativeStatus>({ state: 'stopped' })
   const [opening, setOpening] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
+    if (windowsTerminal) return
     let cancelled = false
     async function refresh() {
       try {
@@ -29,7 +30,7 @@ export function NativeTerminalLauncher() {
     void refresh()
     const timer = setInterval(refresh, 2000)
     return () => { cancelled = true; clearInterval(timer) }
-  }, [])
+  }, [windowsTerminal])
 
   async function open() {
     setOpening(true)
@@ -44,6 +45,13 @@ export function NativeTerminalLauncher() {
   }
 
   const running = status.state === 'running'
+  if (windowsTerminal) return <div className="terminal-connection">
+    <button className="btn-secondary native-terminal-open" onClick={open} disabled={opening}>
+      {opening ? 'Opening…' : 'Open Windows Terminal'}
+    </button>
+    <p>Colors, fonts, acrylic and image/GIF backgrounds update automatically.</p>
+    {error && <p className="convert-error" role="alert">{error}</p>}
+  </div>
   return (
     <div className="terminal-connection">
       <strong>Studio Terminal · {running ? `Running${status.tabCount ? ` · ${status.tabCount} tabs` : ''}` : status.state === 'starting' ? 'Starting…' : 'Ready to open'}</strong>

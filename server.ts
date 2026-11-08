@@ -1,69 +1,63 @@
-import { readFileSync, writeFileSync, existsSync, watch, unlinkSync, renameSync, readdirSync, mkdirSync } from 'fs'
-import { createHash } from 'crypto'
+import { readFileSync, writeFileSync, existsSync, watch, unlinkSync, renameSync, readdirSync, mkdirSync, copyFileSync } from 'fs'
 import path from 'path'
 import type { WTSettings, SavedTheme, ColorScheme, ProfileDefaults, PlaylistItem, PlaylistConfig, PlaylistPlaybackMode } from './src/types'
-import { mergeDefaults, upsertScheme } from './src/lib/settings'
+import { getActiveScheme, mergeDefaults, upsertScheme } from './src/lib/settings'
 import { createPtyxisBridge } from './lib/ptyxis'
 import { createGlassBridge, glassBlurAmount } from './lib/glass'
 import { validateAppearance } from './lib/appearance'
 import { createLiveAppearanceBridge } from './lib/live-appearance'
 import { isDurationMode, isVideo, playlistDuration } from './lib/playlist-timing'
 import { nativeMediaPath, nativeStatus, openNativeTerminal } from './lib/native-terminal'
+import { createSettingsStore, normalizeLocalPath, resolveSettingsPath } from './lib/terminal-settings'
+import { DEFAULT_GIF_CONVERSION, validateGifConversionSettings, type GifConversionSettings } from './src/lib/gif-conversion'
+import { createGifConverter } from './lib/gif-converter'
 
-const WT_SETTINGS_PATH =
-  process.env.WT_SETTINGS_PATH ??
-  (process.env.LOCALAPPDATA
-    ? path.join(
-        process.env.LOCALAPPDATA,
-        'Packages',
-        'Microsoft.WindowsTerminal_8wekyb3d8bbwe',
-        'LocalState',
-        'settings.json'
-      )
-    : // Fallback for non-Windows dev environments: keep the real settings
-      // file untouched and store them beside the project instead.
-      path.join(import.meta.dir, 'wt-settings.json'))
-
-const THEMES_PATH = path.join(import.meta.dir, 'themes.json')
-const PLAYLIST_PATH = path.join(import.meta.dir, 'playlist.json')
-const CONVERTED_GIF_DIR = path.join(import.meta.dir, '.playlist-cache')
+const WT_SETTINGS_PATH = resolveSettingsPath(import.meta.dir)
+const settingsStore = createSettingsStore(WT_SETTINGS_PATH)
+const DATA_DIR = process.env.THEME_STUDIO_DATA_DIR || import.meta.dir
+mkdirSync(DATA_DIR, { recursive: true })
+const THEMES_PATH = path.join(DATA_DIR, 'themes.json')
+const PLAYLIST_PATH = path.join(DATA_DIR, 'playlist.json')
+const CONVERTED_GIF_DIR = path.join(DATA_DIR, '.playlist-cache')
+const CONVERSION_SETTINGS_PATH = path.join(DATA_DIR, 'conversion-settings.json')
+const gifConverter = createGifConverter(CONVERTED_GIF_DIR)
 const terminalBridge = createPtyxisBridge(process.platform === 'linux' && !process.env.WT_SETTINGS_PATH && !process.env.LOCALAPPDATA)
 
 const liveAppearanceBridge = createLiveAppearanceBridge(process.platform === 'linux' && !process.env.WT_SETTINGS_PATH && !process.env.LOCALAPPDATA)
 const glassBridge = createGlassBridge(process.platform === 'linux' && !process.env.WT_SETTINGS_PATH && !process.env.LOCALAPPDATA)
 
-if (!existsSync(WT_SETTINGS_PATH)) {
-  console.log(`Windows Terminal settings.json not found, creating starter file at:\n  ${WT_SETTINGS_PATH}`)
-  writeFileSync(
-    WT_SETTINGS_PATH,
-    JSON.stringify({ profiles: { defaults: {}, list: [] }, schemes: [] }, null, 4),
-    'utf-8'
-  )
-}
-
 const clients = new Set<import('bun').ServerWebSocket<unknown>>()
+let studioRevision = crypto.randomUUID()
+let conversionSession = new AbortController()
 
-let conversionQueue: Promise<void> = Promise.resolve()
-
-async function acquireConversion(): Promise<() => void> {
-  const previous = conversionQueue
-  let release!: () => void
-  conversionQueue = new Promise<void>(resolve => { release = resolve })
-  await previous
-  return release
+function resetSession(): void {
+  stopPlaylistTimer()
+  conversionSession.abort()
+  conversionSession = new AbortController()
+  studioRevision = crypto.randomUUID()
 }
 
-let cachedSettings: WTSettings = JSON.parse(readFileSync(WT_SETTINGS_PATH, 'utf-8'))
+function studioState() {
+  return { revision: studioRevision, settings: readSettings(), playlist: readPlaylist(), conversionSettings: readConversionSettings() }
+}
+
+function broadcast(message: Record<string, unknown>): void {
+  const payload = JSON.stringify({ ...message, revision: studioRevision })
+  clients.forEach(ws => { try { ws.send(payload) } catch {} })
+}
+
+let cachedSettings: WTSettings = settingsStore.read()
 terminalBridge.schedule(cachedSettings)
 glassBridge.schedule(cachedSettings)
 liveAppearanceBridge.schedule(cachedSettings)
 
 function readSettings(): WTSettings {
+  cachedSettings = settingsStore.read()
   return cachedSettings
 }
 
 function writeSettings(settings: WTSettings): void {
-  writeFileSync(WT_SETTINGS_PATH, JSON.stringify(settings, null, 4), 'utf-8')
+  settingsStore.write(settings)
   cachedSettings = settings
   terminalBridge.schedule(settings)
   glassBridge.schedule(settings)
@@ -72,7 +66,7 @@ function writeSettings(settings: WTSettings): void {
 
 function reloadSettingsFromDisk(): void {
   try {
-    cachedSettings = JSON.parse(readFileSync(WT_SETTINGS_PATH, 'utf-8'))
+    cachedSettings = settingsStore.read()
     terminalBridge.schedule(cachedSettings)
     glassBridge.schedule(cachedSettings)
     liveAppearanceBridge.schedule(cachedSettings)
@@ -86,6 +80,26 @@ function readThemes(): SavedTheme[] {
 
 function writeThemes(themes: SavedTheme[]): void {
   writeFileSync(THEMES_PATH, JSON.stringify(themes, null, 2), 'utf-8')
+}
+
+function activeSchemeNames(defaults: ProfileDefaults): string[] {
+  const selected = defaults.colorScheme
+  if (typeof selected === 'string') return [selected]
+  return selected ? [selected.dark, selected.light].filter((name): name is string => !!name)
+    : process.platform === 'win32' ? ['Campbell'] : []
+}
+
+function readConversionSettings(): GifConversionSettings {
+  if (!existsSync(CONVERSION_SETTINGS_PATH)) return { ...DEFAULT_GIF_CONVERSION }
+  return validateGifConversionSettings(JSON.parse(readFileSync(CONVERSION_SETTINGS_PATH, 'utf8')))
+}
+
+function writeConversionSettings(settings: GifConversionSettings): void {
+  const temporary = `${CONVERSION_SETTINGS_PATH}.${crypto.randomUUID()}.tmp`
+  try {
+    writeFileSync(temporary, JSON.stringify(settings, null, 2), 'utf8')
+    renameSync(temporary, CONVERSION_SETTINGS_PATH)
+  } finally { if (existsSync(temporary)) unlinkSync(temporary) }
 }
 
 // ── Playlist engine ──────────────────────────────────────────
@@ -104,7 +118,7 @@ function readPlaylist(): PlaylistConfig {
     const saved = JSON.parse(readFileSync(PLAYLIST_PATH, 'utf-8')) as Partial<PlaylistConfig>
     // Playlist files created before playback modes existed keep their original
     // behaviour: play every clip in order and then return to the first one.
-    return { ...DEFAULT_PLAYLIST, ...saved, durationMode: isDurationMode(saved.durationMode) ? saved.durationMode : 'fixed', playbackMode: isPlaybackMode(saved.playbackMode) ? saved.playbackMode : 'loop' }
+    return normalizePlaylist(saved)
   } catch { return { ...DEFAULT_PLAYLIST } }
 }
 
@@ -158,15 +172,77 @@ function isLegacyGeneratedGif(item: PlaylistItem, videoStems: Set<string>): bool
   return videoStems.has(stem)
 }
 
-function getConvertedGifPath(videoPath: string): string {
-  const stem = path.basename(videoPath, path.extname(videoPath))
-  const hash = createHash('sha256').update(videoPath).digest('hex').slice(0, 12)
-  return path.join(CONVERTED_GIF_DIR, `${stem}-${hash}.gif`)
+function normalizePlaylist(saved: Partial<PlaylistConfig> = {}): PlaylistConfig {
+  const mode = saved.mode === 'playlist' ? 'playlist' : 'single'
+  const items = saved.items ?? []
+  return { ...DEFAULT_PLAYLIST, ...saved, mode, items,
+    folderPath: typeof saved.folderPath === 'string' ? saved.folderPath : playlistFolder(items),
+    currentIndex: Math.max(0, Math.min(saved.currentIndex ?? 0, items.length - 1)),
+    isPlaying: mode === 'playlist' && items.some(item => item.status === 'ready') && saved.isPlaying === true,
+    durationMode: isDurationMode(saved.durationMode) ? saved.durationMode : 'fixed',
+    playbackMode: isPlaybackMode(saved.playbackMode) ? saved.playbackMode : 'loop' }
 }
 
+function resetConvertingItems(pl: PlaylistConfig): PlaylistConfig {
+  return { ...pl, items: pl.items.map(item => item.status === 'converting' ? { ...item, status: 'idle' } : item) }
+}
+
+// Preserve the pre-isolation library before an old look can replace it. Old
+// looks contain no evidence of which playlist or conversion settings they used.
+if (readThemes().some(theme => !theme.settings.playlist)) {
+  for (const file of [THEMES_PATH, PLAYLIST_PATH, CONVERSION_SETTINGS_PATH]) {
+    const backup = `${file}.pre-collections.bak`
+    if (existsSync(file) && !existsSync(backup)) copyFileSync(file, backup)
+  }
+}
+
+function playlistFolder(items: PlaylistItem[]): string {
+  if (!items.length) return ''
+  let folder = path.dirname(items[0].sourcePath)
+  for (const item of items) {
+    while (path.relative(folder, item.sourcePath).startsWith('..') && path.dirname(folder) !== folder) folder = path.dirname(folder)
+  }
+  return folder
+}
+
+// Recover only legacy video looks whose saved GIF identifies an item in the
+// preserved playlist. Image Collections keep their own empty Single state.
+const recoveryFile = `${PLAYLIST_PATH}.pre-collections.bak`
+let recoveryPlaylist = readPlaylist()
+if (existsSync(recoveryFile)) {
+  try { recoveryPlaylist = normalizePlaylist(JSON.parse(readFileSync(recoveryFile, 'utf8'))) } catch {}
+}
+const collectionLibrary = readThemes()
+let recovered = false
+for (const theme of collectionLibrary) {
+  const index = recoveryPlaylist.items.findIndex(item => PLAYLIST_VIDEO_RE.test(item.sourcePath)
+    && (item.gifPath === theme.settings.defaults.backgroundImage || item.sourcePath === theme.settings.defaults.backgroundImage))
+  if (!theme.settings.playlist && index >= 0) {
+    theme.settings.playlist = { ...resetConvertingItems(recoveryPlaylist), mode: 'playlist', isPlaying: false,
+      currentIndex: index, folderPath: recoveryPlaylist.folderPath || playlistFolder(recoveryPlaylist.items) }
+    theme.settings.conversionSettings ??= { ...DEFAULT_GIF_CONVERSION }
+    recovered = true
+  }
+  for (const item of theme.settings.playlist?.items ?? []) {
+    if (PLAYLIST_VIDEO_RE.test(item.sourcePath) && item.gifPath) gifConverter.registerLegacy(item.sourcePath, item.gifPath)
+  }
+}
+for (const item of [...readPlaylist().items, ...recoveryPlaylist.items]) {
+  if (PLAYLIST_VIDEO_RE.test(item.sourcePath) && item.gifPath) gifConverter.registerLegacy(item.sourcePath, item.gifPath)
+}
+// Old playlists did not record per-clip quality; do not assume their GIFs
+// match a non-default setting saved by an older controller.
+const savedQuality = readConversionSettings()
+if (savedQuality.fps !== DEFAULT_GIF_CONVERSION.fps || savedQuality.width !== DEFAULT_GIF_CONVERSION.width) {
+  const playlist = readPlaylist()
+  const items = playlist.items.map(item => PLAYLIST_VIDEO_RE.test(item.sourcePath) && !item.conversionSettings
+    ? { ...item, conversionSettings: savedQuality, status: 'idle' as const, error: null } : item)
+  if (items.some((item, index) => item !== playlist.items[index])) writePlaylist({ ...playlist, items })
+}
+if (recovered) writeThemes(collectionLibrary)
+
 function broadcastPlaylist(pl: PlaylistConfig): void {
-  const msg = JSON.stringify({ type: 'playlist-update', playlist: pl })
-  clients.forEach(ws => { try { ws.send(msg) } catch {} })
+  broadcast({ type: 'playlist-update', playlist: pl })
 }
 
 const playlistSession = crypto.randomUUID()
@@ -206,6 +282,7 @@ function findNextPlaybackIndex(pl: PlaylistConfig): number {
 }
 
 function applyItemBackground(gifPath: string): void {
+  if (readPlaylist().mode !== 'playlist') return
   try {
     let s = readSettings()
     const defaults = s.profiles.defaults
@@ -224,7 +301,7 @@ function applyItemBackground(gifPath: string): void {
 
 function advancePlaylist(): void {
   const current = readPlaylist()
-  if (!current.isPlaying || current.items.length === 0) return
+  if (current.mode !== 'playlist' || !current.isPlaying || current.items.length === 0) return
   const nextIdx = findNextPlaybackIndex(current)
   if (nextIdx === -1) return
   const nextItem = current.items[nextIdx]
@@ -242,7 +319,7 @@ function nativeEndEventsAvailable(): boolean {
 
 function scheduleAdvance(pl: PlaylistConfig): void {
   stopPlaylistTimer()
-  if (!pl.isPlaying || pl.items.length === 0) return
+  if (pl.mode !== 'playlist' || !pl.isPlaying || pl.items.length === 0) return
   const item = pl.items[pl.currentIndex]
   if (!item || item.status !== 'ready') return
   // The native player signals real end-of-stream. The duration fallback also
@@ -271,18 +348,21 @@ function scheduleAdvance(pl: PlaylistConfig): void {
 
 // Resume timer if server restarts while playlist was playing
 ;(function resumePlaylistOnStart() {
-  const pl = readPlaylist()
+  const pl = resetConvertingItems(readPlaylist())
+  if (existsSync(PLAYLIST_PATH)) writePlaylist(pl)
   if (pl.isPlaying && pl.items.length > 0) scheduleAdvance(pl)
 }())
 
 let watchDebounce: ReturnType<typeof setTimeout> | null = null
-watch(WT_SETTINGS_PATH, () => {
+// Windows Terminal saves by replacing the file; watch its directory to keep
+// receiving changes after an atomic rename (including our own writes).
+watch(path.dirname(WT_SETTINGS_PATH), (_event, filename) => {
+  if (filename && filename.toString() !== path.basename(WT_SETTINGS_PATH)) return
   if (watchDebounce) clearTimeout(watchDebounce)
   watchDebounce = setTimeout(() => {
     reloadSettingsFromDisk()
     try {
-      const msg = JSON.stringify({ type: 'settings-update', settings: cachedSettings })
-      clients.forEach(ws => ws.send(msg))
+      broadcast({ type: 'settings-update', settings: cachedSettings })
     } catch {}
   }, 200)
 })
@@ -290,8 +370,8 @@ watch(WT_SETTINGS_PATH, () => {
 function addCors(headers: HeadersInit = {}): Headers {
   const h = new Headers(headers as Record<string, string>)
   h.set('Access-Control-Allow-Origin', '*')
-  h.set('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS')
-  h.set('Access-Control-Allow-Headers', 'Content-Type')
+  h.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
+  h.set('Access-Control-Allow-Headers', 'Content-Type, X-Studio-Revision')
   return h
 }
 
@@ -310,7 +390,7 @@ async function handleRequest(req: Request): Promise<Response> {
     return new Response(null, { status: 204, headers: addCors() })
   }
 
-  if (method === 'GET' && pathname === '/api/health') return json({ app: 'terminal-theme-studio', pid: process.pid })
+  if (method === 'GET' && pathname === '/api/health') return json({ app: 'terminal-theme-studio', pid: process.pid, projectDir: import.meta.dir })
 
   if (method === 'GET' && pathname === '/api/settings') {
     return json(readSettings())
@@ -321,14 +401,50 @@ async function handleRequest(req: Request): Promise<Response> {
   if (method === 'GET' && pathname === '/api/glass') return json(glassBridge.status)
 
   if (method === 'GET' && pathname === '/api/terminal') {
+    if (process.platform === 'win32') {
+      try {
+        readSettings()
+        return json({ backend: 'windows-terminal', state: 'connected', settingsPath: WT_SETTINGS_PATH })
+      } catch (error) {
+        return json({ backend: 'windows-terminal', state: 'error', error: String(error), settingsPath: WT_SETTINGS_PATH })
+      }
+    }
     return json(terminalBridge.status)
   }
 
   if (method === 'GET' && pathname === '/api/preview/source') {
     const requested = url.searchParams.get('path') ?? ''
     const item = readPlaylist().items.find(item => item.gifPath === requested || item.sourcePath === requested)
-    return json({ path: item?.sourcePath ?? requested })
+    if (item) return json({ path: item.sourcePath })
+    const knownSource = gifConverter.sourceFor(requested)
+    if (knownSource) return json({ path: knownSource })
+    // Keep the original source of single-mode conversions across page reloads.
+    if (path.dirname(path.resolve(requested)) === path.resolve(CONVERTED_GIF_DIR) && /\.gif$/i.test(requested)) {
+      try {
+        const metadata = JSON.parse(readFileSync(`${requested}.json`, 'utf8'))
+        if (typeof metadata.sourcePath === 'string' && PLAYLIST_VIDEO_RE.test(metadata.sourcePath)) return json({ path: metadata.sourcePath })
+      } catch { /* Older cached GIFs have no source metadata. */ }
+    }
+    return json({ path: requested })
   }
+
+  // Read mutation bodies before touching state, then reject work from a replaced
+  // Collection (including requests whose body arrived after the switch).
+  const requestRevision = req.headers.get('X-Studio-Revision') ?? studioRevision
+  let requestBody: any = {}
+  if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(method)) {
+    const editsCollection = /^\/api\/(settings|playlist|themes|convert-gif|conversion-settings)(\/|$)/.test(pathname)
+    if (editsCollection && req.headers.has('Sec-Fetch-Site') && !req.headers.has('X-Studio-Revision')) {
+      return json({ error: 'Refresh Theme Studio to load Collection isolation before editing' }, 409)
+    }
+    if (req.body) {
+      try { requestBody = await req.json() }
+      catch { return json({ error: 'invalid JSON body' }, 400) }
+    }
+    if (requestRevision !== studioRevision) return json({ error: 'Collection changed; discard the previous edit' }, 409)
+  }
+
+  if (method === 'GET' && pathname === '/api/state') return json(studioState())
 
   if (method === 'GET' && pathname === '/api/native/state') {
     const settings = readSettings()
@@ -342,7 +458,7 @@ async function handleRequest(req: Request): Promise<Response> {
   if (method === 'POST' && pathname === '/api/playlist/ended') {
     if (req.headers.get('X-Theme-Studio') !== 'native-terminal') return json({ error: 'native request required' }, 403)
     let body: { token?: string; mediaPath?: string }
-    try { body = await req.json() } catch { return json({ error: 'invalid body' }, 400) }
+    body = requestBody
     const pl = readPlaylist()
     const item = pl.items[pl.currentIndex]
     // Tokens prevent two windows/tabs or a delayed EOS from advancing twice.
@@ -359,21 +475,16 @@ async function handleRequest(req: Request): Promise<Response> {
     // The native shell accepts keyboard input only in its own GTK window.
     // Require a same-origin UI request to launch that window.
     const origin = req.headers.get('origin')
-    if (origin && !['http://localhost:5555', 'http://127.0.0.1:5555', 'http://localhost:3001', 'http://127.0.0.1:3001'].includes(origin)) {
+    if (origin && ![url.origin, 'http://localhost:5555', 'http://127.0.0.1:5555', `http://localhost:${process.env.PORT ?? 3001}`].includes(origin)) {
       return json({ error: 'Open the terminal from the local Theme Studio page' }, 403)
     }
     if (req.headers.get('x-theme-studio') !== 'native-terminal') return json({ error: 'Native launch header required' }, 403)
-    try { return json(openNativeTerminal()) }
+    try { return json(await openNativeTerminal(WT_SETTINGS_PATH)) }
     catch (error) { return json({ error: String(error) }, 500) }
   }
 
   if (method === 'PATCH' && pathname === '/api/settings') {
-    let body: { defaults?: Partial<ProfileDefaults>; scheme?: ColorScheme }
-    try {
-      body = await req.json()
-    } catch {
-      return json({ error: 'invalid JSON body' }, 400)
-    }
+    const body: { defaults?: Partial<ProfileDefaults>; scheme?: ColorScheme } = requestBody
     try {
       if (body.defaults) {
         try { validateAppearance(body.defaults) }
@@ -384,6 +495,7 @@ async function handleRequest(req: Request): Promise<Response> {
         catch (error) { return json({ error: String(error) }, 400) }
       }
       let settings = readSettings()
+      if (typeof body.defaults?.backgroundImage === 'string') body.defaults.backgroundImage = normalizeLocalPath(body.defaults.backgroundImage)
       if (body.defaults) settings = mergeDefaults(settings, body.defaults)
       if (body.scheme) settings = upsertScheme(settings, body.scheme)
       writeSettings(settings)
@@ -398,21 +510,17 @@ async function handleRequest(req: Request): Promise<Response> {
   }
 
   if (method === 'POST' && pathname === '/api/themes') {
-    let body: { name: string }
-    try {
-      body = await req.json()
-    } catch {
-      return json({ error: 'invalid JSON body' }, 400)
-    }
+    const body: { name: string } = requestBody
     if (!body.name?.trim()) return json({ error: 'name required' }, 400)
     try {
       const settings = readSettings()
-      const schemeName = settings.profiles.defaults.colorScheme ?? ''
-      const scheme = settings.schemes.find(s => s.name === schemeName)
+      const scheme = getActiveScheme(settings)
       const theme: SavedTheme = {
         name: body.name.trim(),
         savedAt: new Date().toISOString(),
-        settings: { defaults: settings.profiles.defaults, scheme }
+        settings: { defaults: settings.profiles.defaults, scheme,
+          schemes: settings.schemes.filter(candidate => activeSchemeNames(settings.profiles.defaults).includes(candidate.name)),
+          playlist: resetConvertingItems(readPlaylist()), conversionSettings: readConversionSettings() }
       }
       const themes = readThemes().filter(t => t.name !== theme.name)
       writeThemes([...themes, theme])
@@ -436,101 +544,91 @@ async function handleRequest(req: Request): Promise<Response> {
     if (!theme) return json({ error: 'theme not found' }, 404)
     try {
       let settings = readSettings()
-      settings = mergeDefaults(settings, theme.settings.defaults)
-      if (theme.settings.scheme) settings = upsertScheme(settings, theme.settings.scheme)
+      settings = { ...settings, profiles: { ...settings.profiles, defaults: theme.settings.defaults } }
+      if (theme.settings.schemes) {
+        // Absence is meaningful: a saved built-in palette must not inherit a
+        // same-named custom override introduced by a different Collection.
+        const names = activeSchemeNames(theme.settings.defaults)
+        settings = { ...settings, schemes: settings.schemes.filter(scheme => !names.includes(scheme.name)) }
+      }
+      for (const scheme of theme.settings.schemes ?? (theme.settings.scheme ? [theme.settings.scheme] : [])) settings = upsertScheme(settings, scheme)
+      // Legacy looks did not record playlist state. Restore them as Single,
+      // never borrow the currently active Collection's playlist or quality.
+      const playlist = resetConvertingItems(normalizePlaylist(theme.settings.playlist))
+      const conversionSettings = validateGifConversionSettings(theme.settings.conversionSettings ?? DEFAULT_GIF_CONVERSION)
+      resetSession()
+      writePlaylist(playlist)
+      writeConversionSettings(conversionSettings)
       writeSettings(settings)
-      return json({ ok: true })
+      scheduleAdvance(playlist)
+      const session = studioState()
+      broadcast({ type: 'session-update', session })
+      return json({ ok: true, session })
     } catch (err) {
       return json({ error: 'write failed' }, 500)
     }
   }
 
-  if (method === 'POST' && pathname === '/api/convert-gif') {
-    let body: { path: string }
-    try { body = await req.json() } catch { return json({ error: 'invalid body' }, 400) }
+  if (method === 'GET' && pathname === '/api/conversion-settings') {
+    try { return json(readConversionSettings()) }
+    catch { return json({ error: 'Cannot read conversion-settings.json. Check the saved FPS and width.' }, 500) }
+  }
 
-    const videoPath = body.path?.trim()
+  if (method === 'PUT' && pathname === '/api/conversion-settings') {
+    let settings: GifConversionSettings
+    try { settings = validateGifConversionSettings(requestBody) }
+    catch (error) { return json({ error: error instanceof Error ? error.message : 'Invalid conversion settings' }, 400) }
+    try {
+      const playlist = readPlaylist()
+      const items = playlist.items.map(item => {
+        if (!PLAYLIST_VIDEO_RE.test(item.sourcePath)) return item
+        const quality = item.conversionSettings
+        if (quality && quality.fps === settings.fps && quality.width === settings.width) return item
+        return { ...item, conversionSettings: settings, status: 'idle' as const, error: null }
+      })
+      writeConversionSettings(settings)
+      if (items.some((item, index) => item !== playlist.items[index])) {
+        const updated = { ...playlist, items }
+        writePlaylist(updated)
+        if (updated.mode === 'playlist') scheduleAdvance(updated)
+        broadcastPlaylist(updated)
+      }
+      broadcast({ type: 'conversion-settings-update', conversionSettings: settings })
+      return json(settings)
+    } catch { return json({ error: 'Could not save conversion settings' }, 500) }
+  }
+
+  if (method === 'POST' && pathname === '/api/convert-gif') {
+    let body: { path: string; settings?: GifConversionSettings }
+    body = requestBody
+
+    const videoPath = typeof body.path === 'string' ? normalizeLocalPath(body.path) : ''
     if (!videoPath) return json({ error: 'path required' }, 400)
     if (!existsSync(videoPath)) return json({ error: 'file not found' }, 404)
     if (!/\.(mp4|webm|ogg|mov|avi|mkv)$/i.test(videoPath)) {
       return json({ error: 'not a video file' }, 400)
     }
+    let conversionSettings: GifConversionSettings
+    try { conversionSettings = validateGifConversionSettings(body.settings ?? readConversionSettings()) }
+    catch { return json({ error: 'Cannot read GIF conversion settings. Save them again in Background.' }, 500) }
 
-    // Keep generated GIFs separate from the user's media folder so an import
-    // never sees them as extra clips on a later scan.
-    mkdirSync(CONVERTED_GIF_DIR, { recursive: true })
-    const gifPath = getConvertedGifPath(videoPath)
-    const tmpPath = `${gifPath}.${crypto.randomUUID()}.tmp`
-
-    // Serialize requests from all tabs and modes without cancelling other work.
-    const release = await acquireConversion()
-
+    const signal = AbortSignal.any([req.signal, conversionSession.signal])
     try {
-      if (req.signal.aborted) return new Response(null, { status: 499, headers: addCors() })
-      const proc = Bun.spawn([
-        'ffmpeg', '-y', '-i', videoPath,
-        '-vf', 'fps=12,scale=640:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=256[p];[s1][p]paletteuse=dither=bayer',
-        '-loop', '0',
-        '-f', 'gif',
-        tmpPath,
-      ], { stderr: 'pipe' })
-
-      // An aborted request owns only this process, never another queued job.
-      const onAbort = () => { try { proc.kill() } catch {} }
-      req.signal.addEventListener('abort', onAbort)
-      if (req.signal.aborted) onAbort()
-
-      let exitCode: number
-      let stderrPromise: Promise<string>
-      try {
-        // Drain stderr concurrently — ffmpeg is verbose and will deadlock if the
-        // pipe buffer fills while we're blocking on proc.exited.
-        stderrPromise = new Response(proc.stderr).text().catch(() => '')
-        exitCode = await proc.exited
-      } finally {
-        req.signal.removeEventListener('abort', onAbort)
-      }
-
-      if (exitCode !== 0) {
-        if (existsSync(tmpPath)) { try { unlinkSync(tmpPath) } catch {} }
-        if (req.signal.aborted) return new Response(null, { status: 499, headers: addCors() })
-        const detail = await stderrPromise
-        return json({ error: 'ffmpeg failed', detail }, 500)
-      }
-
-      // Atomic rename to final path
-      try {
-        if (existsSync(gifPath)) unlinkSync(gifPath)
-        renameSync(tmpPath, gifPath)
-      } catch (err) {
-        if (existsSync(tmpPath)) { try { unlinkSync(tmpPath) } catch {} }
-        return json({ error: 'rename failed', detail: String(err) }, 500)
-      }
-
-      // Parse source video duration from ffmpeg stderr for accurate playlist timing
-      const stderrText = await stderrPromise
-      const durMatch = stderrText.match(/Duration:\s+(\d+):(\d+):(\d+(?:\.\d+)?)/)
-      let durationSec: number | undefined
-      if (durMatch) {
-        const secs = parseInt(durMatch[1]) * 3600 + parseInt(durMatch[2]) * 60 + parseFloat(durMatch[3])
-        if (secs > 0) durationSec = Math.round(secs * 10) / 10
-      }
-
-      return json({ gifPath, ...(durationSec !== undefined ? { durationSec } : {}) })
+      return json(await gifConverter.convert(videoPath, conversionSettings, signal))
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      if (msg.includes('ENOENT') || msg.toLowerCase().includes('not found')) {
-        return json({ error: 'ffmpeg_missing' }, 503)
-      }
-      return json({ error: 'conversion failed', detail: msg }, 500)
-    } finally {
-      if (existsSync(tmpPath)) { try { unlinkSync(tmpPath) } catch {} }
-      release()
+      return json({ error: err instanceof Error ? err.message : 'Could not prepare clip' }, signal.aborted ? 409 : 500)
     }
   }
 
+  if (method === 'GET' && pathname === '/api/media/variants') {
+    const input = normalizeLocalPath(url.searchParams.get('path') ?? '')
+    const sourcePath = gifConverter.sourceFor(input) ?? input
+    if (!sourcePath || !PLAYLIST_VIDEO_RE.test(sourcePath)) return json({ sourcePath, variants: [] })
+    return json({ sourcePath, variants: await gifConverter.variants(sourcePath) })
+  }
+
   if (method === 'GET' && pathname === '/api/file') {
-    const filePath = url.searchParams.get('path')
+    const filePath = normalizeLocalPath(url.searchParams.get('path') ?? '')
     if (!filePath) return json({ error: 'path required' }, 400)
     if (!existsSync(filePath)) return new Response('Not Found', { status: 404, headers: addCors() })
 
@@ -557,25 +655,40 @@ async function handleRequest(req: Request): Promise<Response> {
 
   if (method === 'PATCH' && pathname === '/api/playlist') {
     let body: Partial<PlaylistConfig>
-    try { body = await req.json() } catch { return json({ error: 'invalid body' }, 400) }
+    body = requestBody
     const pl = readPlaylist()
-    const updated: PlaylistConfig = {
+    let updated: PlaylistConfig = normalizePlaylist({
       ...pl,
       ...body,
       durationMode: isDurationMode(body.durationMode) ? body.durationMode : pl.durationMode,
       playbackMode: isPlaybackMode(body.playbackMode) ? body.playbackMode : pl.playbackMode,
-    }
+    })
+    const modeChanged = updated.mode !== pl.mode
+    if (modeChanged && pl.mode === 'single') updated.singleBackgroundImage = readSettings().profiles.defaults.backgroundImage ?? null
+    if (modeChanged) { resetSession(); updated = resetConvertingItems(updated) }
     writePlaylist(updated)
+    if (modeChanged && updated.mode === 'single' && updated.singleBackgroundImage !== undefined) {
+      writeSettings(mergeDefaults(readSettings(), { backgroundImage: updated.singleBackgroundImage }))
+    }
+    if (modeChanged && updated.mode === 'playlist') {
+      const item = updated.items[updated.currentIndex]
+      if (item?.status === 'ready' && item.gifPath) applyItemBackground(item.gifPath)
+    }
     broadcastPlaylist(updated)
     if (!updated.isPlaying) stopPlaylistTimer()
     else scheduleAdvance(updated)
+    if (modeChanged) {
+      const session = studioState()
+      broadcast({ type: 'session-update', session })
+      return json({ playlist: updated, session })
+    }
     return json({ playlist: updated })
   }
 
   if (method === 'POST' && pathname === '/api/playlist/items') {
     let body: { sourcePath: string }
-    try { body = await req.json() } catch { return json({ error: 'invalid body' }, 400) }
-    const sourcePath = body.sourcePath?.trim()
+    body = requestBody
+    const sourcePath = typeof body.sourcePath === 'string' ? normalizeLocalPath(body.sourcePath) : ''
     if (!sourcePath) return json({ error: 'sourcePath required' }, 400)
     if (!PLAYLIST_MEDIA_RE.test(sourcePath)) return json({ error: 'unsupported file type' }, 400)
 
@@ -601,8 +714,8 @@ async function handleRequest(req: Request): Promise<Response> {
 
   if (method === 'POST' && pathname === '/api/playlist/import-folder') {
     let body: { folderPath: string }
-    try { body = await req.json() } catch { return json({ error: 'invalid body' }, 400) }
-    const folderPath = body.folderPath?.trim()
+    body = requestBody
+    const folderPath = typeof body.folderPath === 'string' ? normalizeLocalPath(body.folderPath) : ''
     if (!folderPath) return json({ error: 'folderPath required' }, 400)
 
     let mediaPaths: string[]
@@ -634,6 +747,7 @@ async function handleRequest(req: Request): Promise<Response> {
     const updated: PlaylistConfig = {
       ...pl,
       items: [...retainedItems, ...newItems],
+      folderPath,
       currentIndex: retainedItems.length === 0
         ? 0
         : (pl.isPlaying || newItems.length === 0 ? currentIndex : newIndex),
@@ -653,6 +767,7 @@ async function handleRequest(req: Request): Promise<Response> {
 
   if (method === 'POST' && pathname === '/api/playlist/play') {
     const pl = readPlaylist()
+    if (pl.mode !== 'playlist') return json({ error: 'Playlist mode is not active' }, 409)
     const readyAtCurrent = pl.items[pl.currentIndex]?.status === 'ready'
     const firstReadyIdx = readyAtCurrent ? pl.currentIndex : pl.items.findIndex(i => i.status === 'ready')
     if (firstReadyIdx === -1) return json({ error: 'no ready items' }, 400)
@@ -711,7 +826,7 @@ async function handleRequest(req: Request): Promise<Response> {
 
   if (method === 'POST' && pathname === '/api/playlist/jump') {
     let body: { index: number }
-    try { body = await req.json() } catch { return json({ error: 'invalid body' }, 400) }
+    body = requestBody
     const pl = readPlaylist()
     const { index } = body
     if (index < 0 || index >= pl.items.length) return json({ error: 'index out of range' }, 400)
@@ -730,10 +845,19 @@ async function handleRequest(req: Request): Promise<Response> {
   if (method === 'PATCH' && plItemMatch) {
     const id = decodeURIComponent(plItemMatch[1])
     let body: Partial<PlaylistItem>
-    try { body = await req.json() } catch { return json({ error: 'invalid body' }, 400) }
+    body = requestBody
     const pl = readPlaylist()
     const idx = pl.items.findIndex(i => i.id === id)
     if (idx === -1) return json({ error: 'item not found' }, 404)
+    if (body.conversionSettings) {
+      try { body.conversionSettings = validateGifConversionSettings(body.conversionSettings) }
+      catch (error) { return json({ error: String(error) }, 400) }
+      if (body.status !== 'ready') { body.status = 'idle'; body.error = null }
+    }
+    if (requestBody.expectedConversion && JSON.stringify(requestBody.expectedConversion) !== JSON.stringify(pl.items[idx].conversionSettings ?? readConversionSettings())) {
+      return json({ error: 'Clip quality changed' }, 409)
+    }
+    delete requestBody.expectedConversion
     const updatedItem: PlaylistItem = { ...pl.items[idx], ...body }
     if (updatedItem.status === 'ready') updatedItem.error = null
     const items = pl.items.map((it, i) => i === idx ? updatedItem : it)
@@ -791,10 +915,11 @@ const server = Bun.serve({
     return handleRequest(req)
   },
   websocket: {
-    open(ws) { clients.add(ws) },
+    open(ws) { clients.add(ws); ws.send(JSON.stringify({ type: 'session-update', session: studioState() })) },
     close(ws) { clients.delete(ws) },
     message() {}
   }
 })
 
 console.log(`Server running at http://localhost:${server.port}`)
+console.log(`Settings: ${WT_SETTINGS_PATH}`)

@@ -1,4 +1,5 @@
 import type { AppearanceNumbers } from './lib/appearance'
+import type { GifConversionSettings } from './lib/gif-conversion'
 export interface ColorScheme {
   name: string
   background: string
@@ -26,13 +27,14 @@ export interface ColorScheme {
 export interface FontSettings {
   face: string
   size: number
-  weight: 'normal' | 'bold' | 'thin' | 'light' | 'semi-light' | 'semi-bold' | 'extra-light' | 'extra-bold'
+  weight: 'normal' | 'bold' | 'thin' | 'light' | 'semi-light' | 'semi-bold' | 'extra-light' | 'extra-bold' | number
 }
 
 export interface TerminalConnection {
   backend: 'ptyxis' | 'windows-terminal'
   state: 'idle' | 'syncing' | 'connected' | 'error'
   profile?: string
+  settingsPath?: string
   error?: string
 }
 
@@ -43,7 +45,7 @@ export interface ProfileDefaults extends AppearanceNumbers {
   opacity?: number
   useAcrylic?: boolean
   unfocusedAppearance?: { opacity: number }
-  colorScheme?: string
+  colorScheme?: string | { dark?: string; light?: string }
   font?: FontSettings
   backgroundImage?: string | null
   backgroundImageOpacity?: number
@@ -78,7 +80,17 @@ export interface SavedTheme {
   settings: {
     defaults: ProfileDefaults
     scheme: ColorScheme | undefined
+    schemes?: ColorScheme[]
+    playlist?: PlaylistConfig
+    conversionSettings?: GifConversionSettings
   }
+}
+
+export interface StudioState {
+  revision: string
+  settings: WTSettings
+  playlist: PlaylistConfig
+  conversionSettings: GifConversionSettings
 }
 
 export type PlaylistItemStatus = 'idle' | 'converting' | 'ready' | 'error'
@@ -91,6 +103,7 @@ export interface PlaylistItem {
   status: PlaylistItemStatus
   error?: string | null
   durationSec: number
+  conversionSettings?: GifConversionSettings
 }
 
 export interface PlaylistConfig {
@@ -101,4 +114,6 @@ export interface PlaylistConfig {
   defaultDurationSec: number
   durationMode: 'fixed' | 'full-video'
   playbackMode: PlaylistPlaybackMode
+  folderPath?: string
+  singleBackgroundImage?: string | null
 }

@@ -1,5 +1,5 @@
 import type { WTSettings, ColorScheme, ProfileDefaults } from '../../types'
-import { getActiveScheme, isBuiltInScheme } from '../../lib/settings'
+import { getActiveScheme, getSchemeName, isBuiltInScheme } from '../../lib/settings'
 
 interface Props {
   settings: WTSettings
@@ -37,7 +37,7 @@ function ColorPicker({ label, value, onChange }: { label: string; value: string;
 
 export function ColorsPanel({ settings, onPatch }: Props) {
   const activeScheme = getActiveScheme(settings)
-  const schemeName = settings.profiles.defaults.colorScheme ?? ''
+  const schemeName = getSchemeName(settings)
   const isBuiltIn = isBuiltInScheme(schemeName)
 
   function handleColorChange(key: keyof ColorScheme, value: string) {

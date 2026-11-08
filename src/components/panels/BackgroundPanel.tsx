@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import type { WTSettings, ProfileDefaults } from '../../types'
 import type { UsePlaylistReturn } from '../../hooks/usePlaylist'
+import { GifConversionControls } from './GifConversionControls'
+import type { StudioRequest } from '../../hooks/useSettings'
+import type { GifConversionSettings } from '../../lib/gif-conversion'
 
 interface Props {
   plain?: boolean
@@ -8,6 +11,8 @@ interface Props {
   onPatch: (body: { defaults: Partial<ProfileDefaults> }) => void
   playlist: UsePlaylistReturn
   isPtyxis?: boolean
+  request: StudioRequest
+  conversionSettings: GifConversionSettings
 }
 
 const VIDEO_RE = /\.(mp4|webm|ogg|mov|avi|mkv)$/i
@@ -31,29 +36,45 @@ const ALIGNMENTS: NonNullable<ProfileDefaults['backgroundImageAlignment']>[] = [
 
 type ConvertState = 'idle' | 'converting' | 'done' | 'error'
 
-export function BackgroundPanel({ settings, onPatch, playlist, isPtyxis, plain }: Props) {
+export function BackgroundPanel({ settings, onPatch, playlist, isPtyxis, plain, request, conversionSettings }: Props) {
   const d = settings.profiles.defaults
   const bgImage = d.backgroundImage ?? ''
   const bgOpacity = d.backgroundImageOpacity ?? 1.0
   const stretchMode = d.backgroundImageStretchMode ?? 'uniform'
   const alignment = d.backgroundImageAlignment ?? 'center'
 
-  const { playlist: config, patchConfig, importFolder, removeItem, moveItem, updateItem, play, pause, next, prev, jumpTo, retryItem } = playlist
+  const { playlist: config, patchConfig, importFolder, removeItem, moveItem, updateItem, play, pause, next, prev, jumpTo } = playlist
 
   const isPlaylistMode = config.mode === 'playlist'
 
   // Single-mode conversion state
   const [convertState, setConvertState] = useState<ConvertState>('idle')
   const [convertError, setConvertError] = useState('')
+  const [conversionAttempt, setConversionAttempt] = useState(0)
+  const [sourceVideo, setSourceVideo] = useState<{ background: string; path: string } | null>(null)
+
+  useEffect(() => {
+    if (!bgImage || !/\.gif$/i.test(bgImage)) return
+    const controller = new AbortController()
+    fetch(`/api/preview/source?path=${encodeURIComponent(bgImage)}`, { signal: controller.signal })
+      .then(response => { if (!response.ok) throw new Error('Source unavailable'); return response.json() })
+      .then(data => {
+        if (!controller.signal.aborted && typeof data.path === 'string' && VIDEO_RE.test(data.path)) {
+          setSourceVideo({ background: bgImage, path: data.path })
+        }
+      }).catch(() => {})
+    return () => controller.abort()
+  }, [bgImage])
 
   // Playlist folder import
-  const [folderPath, setFolderPath] = useState('')
+  const [folderPath, setFolderPath] = useState(config.folderPath ?? '')
+  useEffect(() => { setFolderPath(config.folderPath ?? '') }, [config.folderPath])
   const [importStatus, setImportStatus] = useState('')
   const [isImporting, setIsImporting] = useState(false)
 
   // Auto-convert video → GIF in single mode
   useEffect(() => {
-    if (!bgImage || !VIDEO_RE.test(bgImage)) {
+    if (isPlaylistMode || !bgImage || !VIDEO_RE.test(bgImage)) {
       setConvertState('idle')
       setConvertError('')
       return
@@ -63,35 +84,37 @@ export function BackgroundPanel({ settings, onPatch, playlist, isPtyxis, plain }
     const controller = new AbortController()
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch('/api/convert-gif', {
+        const data = await request('/api/convert-gif', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path: bgImage }),
+          body: JSON.stringify({ path: bgImage, settings: conversionSettings }),
           signal: controller.signal,
         })
-        const data: { gifPath?: string; error?: string } = await res.json()
-        if (!res.ok) {
-          if (data.error === 'ffmpeg_missing') {
-            setConvertError('ffmpeg not found — install it from ffmpeg.org and add it to PATH')
-          } else {
-            setConvertError(data.error ?? 'Conversion failed')
-          }
-          setConvertState('error')
-        } else if (data.gifPath) {
+        if (controller.signal.aborted) return
+        if (data.gifPath) {
           onPatch({ defaults: { backgroundImage: data.gifPath } })
           setConvertState('done')
         }
       } catch (e: unknown) {
         if ((e as Error)?.name === 'AbortError') return
-        setConvertError('Network error')
+        if (controller.signal.aborted) return
+        setConvertError((e as Error).message)
         setConvertState('error')
       }
-    }, 800)
+    }, 350)
     return () => { clearTimeout(timer); controller.abort() }
-  }, [bgImage, onPatch])
+  }, [bgImage, onPatch, isPlaylistMode, request, conversionSettings.fps, conversionSettings.width, conversionAttempt])
 
   const isVideo = VIDEO_RE.test(bgImage)
   const label = getMediaLabel(bgImage)
+  const singleSource = isVideo ? bgImage : sourceVideo?.background === bgImage ? sourceVideo.path : undefined
+
+  async function setQuality(quality: GifConversionSettings) {
+    try {
+      await request('/api/conversion-settings', { method: 'PUT', body: JSON.stringify(quality) })
+      if (!isPlaylistMode && singleSource) { setConversionAttempt(value => value + 1); onPatch({ defaults: { backgroundImage: singleSource } }) }
+    } catch (error) { if ((error as Error).name !== 'AbortError') setConvertError((error as Error).message) }
+  }
 
   async function handleImportFolder() {
     const path = folderPath.trim()
@@ -119,14 +142,14 @@ export function BackgroundPanel({ settings, onPatch, playlist, isPtyxis, plain }
 
   return (
     <div>
-      <h2 className="panel-title">{plain ? 'Background' : 'Set the scene.'}</h2><p className="panel-subtitle">Choose a quiet backdrop or bring your terminal to life with a playlist.</p>
+      <h2 className="panel-title">{plain ? 'Background' : 'Set the scene.'}</h2>
 
       {/* Mode toggle */}
       <div className="playlist-tabs">
         <button
           aria-pressed={!isPlaylistMode}
           className={`playlist-tab${!isPlaylistMode ? ' active' : ''}`}
-          onClick={() => patchConfig({ mode: 'single' })}
+          onClick={() => patchConfig({ mode: 'single', ...(isPlaylistMode ? { folderPath } : {}) })}
         >
           Single
         </button>
@@ -145,12 +168,6 @@ export function BackgroundPanel({ settings, onPatch, playlist, isPtyxis, plain }
           <div className="control-label">
             <label htmlFor="background-path">File path</label>
             {label && !isVideo && <span className="control-value">{label}</span>}
-            {isVideo && convertState === 'converting' && (
-              <span className="convert-badge converting">⟳ Converting…</span>
-            )}
-            {isVideo && convertState === 'done' && (
-              <span className="convert-badge done">✓ Converted to GIF</span>
-            )}
             {isVideo && convertState === 'error' && (
               <span className="convert-badge error">✕ Error</span>
             )}
@@ -158,18 +175,19 @@ export function BackgroundPanel({ settings, onPatch, playlist, isPtyxis, plain }
           <input
             id="background-path" className="text-input"
             type="text"
-            value={bgImage}
+            value={singleSource ?? bgImage}
             placeholder={isPtyxis ? '/home/you/Pictures/wallpaper.png' : 'C:/Users/you/Pictures/wallpaper.png'}
             onChange={e => onPatch({ defaults: { backgroundImage: e.target.value || null } })}
+            onPaste={e => {
+              e.preventDefault()
+              onPatch({ defaults: { backgroundImage: e.clipboardData.getData('text').trim().replace(/^"(.*)"$/, '$1') || null } })
+            }}
           />
           {convertState === 'error' && convertError && (
             <div className="convert-error">{convertError}</div>
           )}
-          {convertState !== 'error' && (
-            <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 4 }}>
-              Images: PNG JPG GIF WebP — Videos: MP4 WebM OGG MOV (auto-converted to GIF)
-            </div>
-          )}
+          {singleSource && <GifConversionControls sourcePath={singleSource} gifPath={bgImage} settings={conversionSettings} fallback={conversionSettings}
+            label="Single video" status={convertState === 'idle' && !isVideo ? 'ready' : convertState} onChange={setQuality} />}
         </div>
       )}
 
@@ -188,7 +206,8 @@ export function BackgroundPanel({ settings, onPatch, playlist, isPtyxis, plain }
                 type="text"
                 value={folderPath}
                 placeholder={isPtyxis ? '/home/you/Videos' : 'C:/Users/you/Videos'}
-                onChange={e => setFolderPath(e.target.value)}
+                 onChange={e => setFolderPath(e.target.value)}
+                 onBlur={() => { if (folderPath !== config.folderPath) void patchConfig({ folderPath }) }}
                 onKeyDown={e => { if (e.key === 'Enter') handleImportFolder() }}
               />
               <button
@@ -196,14 +215,23 @@ export function BackgroundPanel({ settings, onPatch, playlist, isPtyxis, plain }
                 disabled={!folderPath.trim() || isImporting}
                 onClick={handleImportFolder}
               >
-                {isImporting ? 'Scanning…' : 'Import'}
+                 {isImporting ? 'Scanning…' : 'Load clips'}
               </button>
-            </div>
-            <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 4 }}>
-              Scans this folder and its subfolders. Duplicate clips are skipped; no clip limit.
             </div>
             {importStatus && <div className="playlist-import-status" role="status">{importStatus}</div>}
           </div>
+
+          <GifConversionControls fallback={conversionSettings} settings={conversionSettings} label="Default" onChange={setQuality} />
+          {convertError && <p className="convert-error" role="alert">{convertError}</p>}
+          {config.items.some(item => VIDEO_RE.test(item.sourcePath) && (item.status === 'idle' || item.status === 'converting')) && (
+            <div className="conversion-progress" role="status">
+              <div className="conversion-progress-heading">
+                <span>Preparing clips</span>
+                <span>{config.items.filter(item => VIDEO_RE.test(item.sourcePath) && item.status === 'ready').length} / {config.items.filter(item => VIDEO_RE.test(item.sourcePath)).length} clips ready</span>
+              </div>
+              <progress className="conversion-progress-bar" aria-label="Clips prepared" value={config.items.filter(item => VIDEO_RE.test(item.sourcePath) && item.status === 'ready').length} max={config.items.filter(item => VIDEO_RE.test(item.sourcePath)).length} />
+            </div>
+          )}
 
           {/* Clip list */}
           <div className="playlist-list">
@@ -217,30 +245,21 @@ export function BackgroundPanel({ settings, onPatch, playlist, isPtyxis, plain }
                 >
                   <span
                     className={`playlist-status-dot ps-${item.status}`}
-                    title={
+                      title={
                       item.status === 'ready' ? 'Ready' :
-                      item.status === 'converting' ? 'Converting…' :
-                      item.status === 'idle' ? 'Waiting to convert' :
+                       item.status === 'converting' ? 'Preparing…' :
+                       item.status === 'idle' ? 'Queued' :
                       item.error ?? 'Error'
                     }
                   />
-                  <span
+                  <button type="button"
                     className="playlist-item-name"
                     title={item.sourcePath}
                     onClick={() => jumpTo(idx)}
                   >
                     {item.sourcePath.split(/[\\/]/).pop()}
-                  </span>
-                  {item.status === 'error' && (
-                    <button
-                      className="playlist-icon-btn"
-                      onClick={() => retryItem(item.id)}
-                      title={`Retry${item.error ? ': ' + item.error : ''}`}
-                      style={{ fontSize: 12, color: 'var(--danger)' }}
-                    >
-                      ↻
-                    </button>
-                  )}
+                  </button>
+                  {item.status === 'error' && <span className="clip-preparing" title={item.error ?? ''}>Could not prepare</span>}
                   {config.durationMode === 'full-video' && VIDEO_RE.test(item.sourcePath) ? (
                     <span className="playlist-duration-label" title="Uses the full source video length">Full clip</span>
                   ) : <>

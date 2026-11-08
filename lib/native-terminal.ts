@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, openSync, readFileSync, closeSync } from 'fs'
 import path from 'path'
 import type { WTSettings, PlaylistConfig } from '../src/types'
+import { windowsTerminalCommand } from './terminal-settings'
 
 const runtime = path.join(import.meta.dir, '../.native-runtime')
 const statusFile = path.join(runtime, 'status.json')
@@ -15,6 +16,7 @@ export function nativeMediaPath(settings: WTSettings, playlist: PlaylistConfig):
 }
 
 export function nativeStatus() {
+  if (process.platform === 'win32') return { state: 'stopped' }
   if (existsSync(statusFile)) {
     try {
       const saved = JSON.parse(readFileSync(statusFile, 'utf-8'))
@@ -29,7 +31,13 @@ export function nativeStatus() {
   return { state: starting ? 'starting' : 'stopped', error: launch?.exitCode ? 'Native terminal exited. See .native-runtime/terminal.log.' : undefined }
 }
 
-export function openNativeTerminal() {
+export async function openNativeTerminal(settingsPath = '') {
+  if (process.platform === 'win32') {
+    const proc = Bun.spawn(windowsTerminalCommand(settingsPath), { stdout: 'ignore', stderr: 'pipe', stdin: 'ignore' })
+    const error = new Response(proc.stderr).text()
+    if (await proc.exited !== 0) throw new Error((await error).trim() || 'Could not open Windows Terminal. Check wt.exe / WT_EXECUTABLE.')
+    return { state: 'stopped' }
+  }
   if (process.platform !== 'linux') throw new Error('Studio Terminal currently requires Ubuntu/Linux')
   const status = nativeStatus()
   if (status.state === 'starting') return status
